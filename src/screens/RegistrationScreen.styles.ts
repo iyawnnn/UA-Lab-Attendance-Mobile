@@ -1,0 +1,102 @@
+// src/screens/RegistrationScreen.styles.ts
+
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  brandHero: {
+    backgroundColor: "#011B51",
+    paddingTop: 64,
+    paddingBottom: 32,
+    paddingHorizontal: 24,
+    borderBottomWidth: 4,
+    borderBottomColor: "#FED702",
+  },
+  heroTitle: {
+    fontSize: 36,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+  },
+  heroSubTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#FED702",
+    textTransform: "uppercase",
+    marginTop: -4,
+  },
+  accentBar: {
+    width: 48,
+    height: 4,
+    backgroundColor: "#FED702",
+    borderRadius: 2,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  tagline: {
+    fontSize: 14,
+    color: "#E2E8F0",
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  formContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
+  },
+  sectionHeading: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#011B51",
+    textTransform: "uppercase",
+    marginBottom: 24,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputRow: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#011B51",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  input: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: "#1E293B",
+    fontWeight: "500",
+  },
+  submitButton: {
+    backgroundColor: "#011B51",
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    borderBottomWidth: 4,
+    borderBottomColor: "#A51A21",
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+    borderBottomColor: "#011B51",
+  },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+});
