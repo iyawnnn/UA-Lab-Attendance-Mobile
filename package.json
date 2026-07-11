@@ -20,6 +20,8 @@
   },
   "scripts": {
     "start": "expo start",
+    "start:local": "EXPO_PUBLIC_API_URL=http://10.0.2.2:3000 npx expo start --dev-client -c",
+    "start:prod": "EXPO_PUBLIC_API_URL=https://ua-lab-attendance.vercel.app npx expo start --dev-client -c",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web"
