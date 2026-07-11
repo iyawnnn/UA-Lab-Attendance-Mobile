@@ -91,12 +91,17 @@ export const AttendanceApiClient = {
     }
   },
 
-  async recoverDevice(studentId: string, pin: string, newPublicKey?: string): Promise<ApiResponse> {
+  async recoverDevice(
+    studentId: string,
+    pin: string,
+    newPublicKey?: string,
+    newPin?: string
+  ): Promise<ApiResponse> {
     try {
       const response = await fetch(`${BASE_URL}/api/student/recover`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, pin, newPublicKey }),
+        body: JSON.stringify({ studentId, pin, newPublicKey, newPin }),
       });
       return await response.json();
     } catch (error) {

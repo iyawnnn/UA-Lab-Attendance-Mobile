@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  AppState
 } from "react-native";
 import * as Location from "expo-location";
 import { Picker } from "@react-native-picker/picker";
@@ -30,23 +31,23 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Background Revocation Check & Room Fetch
+  // Background Revocation Check & Active Room Fetch
   const loadLabRoomsAndCheckStatus = useCallback(async () => {
     try {
       setIsLoadingRooms(true);
 
-      // 1. Silent revocation check
+      // 1. Silent revocation & key-transfer verification
       const statusRes = await AttendanceApiClient.checkDeviceRevoked(studentId);
       if (statusRes.success && statusRes.isRevoked) {
         Alert.alert(
-          "Device Authorization Revoked",
-          "This device has been deauthorized or recovered on the web portal. Please register again.",
+          "Session Expired",
+          "This device has been deauthorized or your account was authorized on another device. Please register or recover your account again.",
           [{ text: "OK", onPress: async () => await onRevoked() }]
         );
         return;
       }
 
-      // 2. Fetch active rooms
+      // 2. Fetch active facilities
       const response = await AttendanceApiClient.fetchLabRooms();
       if (response.success && Array.isArray(response.data)) {
         setLabRooms(response.data);
@@ -60,10 +61,32 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     }
   }, [studentId, onRevoked]);
 
+  // Initial load
   useEffect(() => {
     loadLabRoomsAndCheckStatus();
   }, [loadLabRoomsAndCheckStatus]);
 
+  // Real-time background session validation every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadLabRoomsAndCheckStatus();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [loadLabRoomsAndCheckStatus]);
+
+  // Instant re-verification whenever the student re-opens or switches back to the app
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        loadLabRoomsAndCheckStatus();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [loadLabRoomsAndCheckStatus]);
+
+  // Clock tick
   useEffect(() => {
     function updateClock() {
       const now = new Date();
