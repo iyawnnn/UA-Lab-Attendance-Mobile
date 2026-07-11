@@ -1,6 +1,6 @@
 // src/screens/AttendanceScreen.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Text,
   View,
@@ -30,23 +30,39 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function loadInitialData() {
-      try {
-        const response = await AttendanceApiClient.fetchLabRooms();
-        if (response.success && Array.isArray(response.data)) {
-          setLabRooms(response.data);
-        } else {
-          Alert.alert("Data Error", "Could not fetch laboratory facilities.");
-        }
-      } catch (error) {
-        Alert.alert("Network Error", "Failed to communicate with facility registry server.");
-      } finally {
-        setIsLoadingRooms(false);
+  // Background Revocation Check & Room Fetch
+  const loadLabRoomsAndCheckStatus = useCallback(async () => {
+    try {
+      setIsLoadingRooms(true);
+
+      // 1. Silent revocation check
+      const statusRes = await AttendanceApiClient.checkDeviceRevoked(studentId);
+      if (statusRes.success && statusRes.isRevoked) {
+        Alert.alert(
+          "Device Authorization Revoked",
+          "This device has been deauthorized or recovered on the web portal. Please register again.",
+          [{ text: "OK", onPress: async () => await onRevoked() }]
+        );
+        return;
       }
+
+      // 2. Fetch active rooms
+      const response = await AttendanceApiClient.fetchLabRooms();
+      if (response.success && Array.isArray(response.data)) {
+        setLabRooms(response.data);
+      } else {
+        Alert.alert("Data Error", "Could not fetch laboratory facilities.");
+      }
+    } catch (error) {
+      console.warn("Network Error during background check:", error);
+    } finally {
+      setIsLoadingRooms(false);
     }
-    loadInitialData();
-  }, []);
+  }, [studentId, onRevoked]);
+
+  useEffect(() => {
+    loadLabRoomsAndCheckStatus();
+  }, [loadLabRoomsAndCheckStatus]);
 
   useEffect(() => {
     function updateClock() {
@@ -100,7 +116,14 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       } else {
         Alert.alert("Check-In Denied", response.message);
 
-        if (response.message?.includes("DEVICE_REVOKED") || response.message?.includes("not found")) {
+        // Auto-logout if signature or device key validation fails
+        const isSecurityOrRevocationError =
+          response.message?.includes("DEVICE_REVOKED") ||
+          response.message?.includes("not found") ||
+          response.message?.includes("signature") ||
+          response.message?.includes("Security verification");
+
+        if (isSecurityOrRevocationError) {
           await onRevoked();
         }
       }
@@ -159,7 +182,14 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Facility Selection</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <Text style={styles.label}>Facility Selection</Text>
+            <TouchableOpacity onPress={loadLabRoomsAndCheckStatus} disabled={isLoadingRooms}>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: "#011B51" }}>
+                {isLoadingRooms ? "Refreshing..." : "Refresh Rooms"}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.pickerContainer}>
             {isLoadingRooms ? (
               <ActivityIndicator size="small" color="#011B51" style={{ padding: 14 }} />

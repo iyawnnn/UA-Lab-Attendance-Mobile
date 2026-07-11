@@ -21,6 +21,7 @@ export interface AttendancePayload {
 export interface ApiResponse {
   success: boolean;
   message: string;
+  isRevoked?: boolean;
   data?: any;
 }
 
@@ -68,6 +69,24 @@ export const AttendanceApiClient = {
       return {
         success: false,
         message: "Network request failed while fetching laboratory facilities.",
+      };
+    }
+  },
+
+  async checkDeviceRevoked(studentId: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/api/student/check-status?studentId=${encodeURIComponent(studentId)}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      return await response.json();
+    } catch (error) {
+      return {
+        success: false,
+        message: "Network request failed while checking device status.",
       };
     }
   },
