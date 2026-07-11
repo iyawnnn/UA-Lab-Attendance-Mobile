@@ -37,10 +37,10 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         if (response.success && Array.isArray(response.data)) {
           setLabRooms(response.data);
         } else {
-          Alert.alert("Data Error", "Could not fetch institutional laboratory facilities.");
+          Alert.alert("Data Error", "Could not fetch laboratory facilities.");
         }
       } catch (error) {
-        Alert.alert("Network Error", "Failed to communicate with the facility registry server.");
+        Alert.alert("Network Error", "Failed to communicate with facility registry server.");
       } finally {
         setIsLoadingRooms(false);
       }
@@ -71,25 +71,21 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     setIsSubmitting(true);
 
     try {
-      // 1. Request and verify system localization coordinates
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission Denied", "Location access is required to verify your proximity.");
+        Alert.alert("Permission Denied", "Location access is required to verify proximity.");
         setIsSubmitting(false);
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
+      await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
       const timestampISO = new Date().toISOString();
-
-      // 2. Format token message strictly following backend verification signatures
       const messageToSign = `${studentId}-${selectedRoom}-${timestampISO}`;
       const signatureBase64 = signAttendancePayload(messageToSign, privateKey);
 
-      // 3. Dispatch payload to backend
       const response = await AttendanceApiClient.submitAttendance({
         studentId,
         labRoom: selectedRoom,
@@ -102,19 +98,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         Alert.alert("Attendance Logged", response.message);
         setRoomPin("");
       } else {
-        // Displays the accurate, detailed message directly from the backend API
         Alert.alert("Check-In Denied", response.message);
-
-        if (response.message?.includes("DEVICE_REVOKED")) {
-          await onRevoked();
-        }
-      }
-
-      if (response.success) {
-        Alert.alert("Success", response.message || "Attendance logged successfully!");
-        setRoomPin("");
-      } else {
-        Alert.alert("Verification Rejected", response.message || "Attendance check failed.");
 
         if (response.message?.includes("DEVICE_REVOKED") || response.message?.includes("not found")) {
           await onRevoked();
@@ -124,10 +108,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       console.error("Attendance Submission Error:", error);
 
       let friendlyMessage = "An unexpected error occurred during verification.";
-
-      if (error?.message?.includes("DER private key") || error?.message?.includes("KeyObjectHandle")) {
-        friendlyMessage = "Security key format error. Please tap 'Deauthorize This Device' below and re-register your phone.";
-      } else if (error?.message?.includes("Network") || error?.message?.includes("fetch")) {
+      if (error?.message?.includes("Network") || error?.message?.includes("fetch")) {
         friendlyMessage = "Unable to connect to the server. Please check your internet connection.";
       } else if (error?.message?.includes("Location")) {
         friendlyMessage = "Could not retrieve GPS coordinates. Please verify location services are enabled on your phone.";
@@ -136,13 +117,15 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       }
 
       Alert.alert("Verification Error", friendlyMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDeviceRevocation = () => {
     Alert.alert(
       "Confirm Revocation",
-      "Are you sure you want to remove authorization for this device? You will need your recovery PIN to register a new unit.",
+      "Are you sure you want to remove authorization for this device?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -186,9 +169,9 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
                 onValueChange={(itemValue) => setSelectedRoom(itemValue)}
                 style={styles.picker}
               >
-                <option value="" label="Select lab room..." />
+                <Picker.Item label="Select lab room..." value="" />
                 {labRooms.map((room, index) => (
-                  <option key={index} value={room} label={room} />
+                  <Picker.Item key={index} label={room} value={room} />
                 ))}
               </Picker>
             )}
