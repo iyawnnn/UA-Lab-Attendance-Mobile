@@ -26,7 +26,6 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
 
-  // Handles standard new student registration
   const handleRegister = async () => {
     if (!studentId || !firstName || !lastName || !recoveryPin) {
       Alert.alert("Missing Parameters", "Please fill out all identification fields.");
@@ -55,7 +54,6 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
         Alert.alert("Success", "Device registered successfully!");
         await onRegistrationSuccess(studentId, keyPair.privateKeyBase64);
       } else {
-        // If device is already registered, suggest recovery mode
         if (response.message.includes("already registered")) {
           Alert.alert(
             "Device Already Registered",
@@ -79,7 +77,6 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
     }
   };
 
-  // Handles unlinking the old key and re-registering on a new device
   const handleRecoverDevice = async () => {
     if (!studentId || !recoveryPin) {
       Alert.alert("Missing Parameters", "Please enter your Student ID and 4-digit Security PIN.");
@@ -89,32 +86,21 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
     setIsSubmitting(true);
 
     try {
-      // 1. Unlink existing device key from backend database using recovery PIN
-      const recoveryResponse = await AttendanceApiClient.recoverDevice(studentId, recoveryPin);
-
-      if (!recoveryResponse.success) {
-        Alert.alert("Recovery Failed", recoveryResponse.message);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // 2. Generate a fresh key pair for this phone
+      // 1. Generate a fresh key pair for this phone
       const keyPair = generateDeviceKeyPair();
 
-      // 3. Register the new device public key
-      const registerResponse = await AttendanceApiClient.registerStudent({
-        studentId,
-        firstName: firstName || "Student", // Fallback if recovering without re-entering name
-        lastName: lastName || "User",
-        publicKey: keyPair.publicKeyBase64,
-        recoveryPin,
-      });
+      // 2. Unlink old device and register new public key in one step
+      const recoveryResponse = await AttendanceApiClient.recoverDevice(
+        studentId, 
+        recoveryPin, 
+        keyPair.publicKeyBase64
+      );
 
-      if (registerResponse.success) {
+      if (recoveryResponse.success) {
         Alert.alert("Device Recovered", "Your account has been successfully transferred to this device!");
         await onRegistrationSuccess(studentId, keyPair.privateKeyBase64);
       } else {
-        Alert.alert("Registration Error", registerResponse.message);
+        Alert.alert("Recovery Failed", recoveryResponse.message);
       }
     } catch (error) {
       Alert.alert("Network Failure", "Unable to complete recovery request.");
