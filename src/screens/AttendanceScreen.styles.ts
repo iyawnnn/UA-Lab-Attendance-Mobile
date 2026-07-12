@@ -69,7 +69,7 @@ export const styles = StyleSheet.create({
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 16,
   },
   timeDetails: {
     marginLeft: 12,
@@ -86,6 +86,59 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#011B51",
     marginTop: 2,
+  },
+  readinessContainer: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 20,
+  },
+  statusPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  pillSuccess: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  pillWarning: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+  },
+  pillError: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  readinessNotice: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+  },
+  readinessNoticeText: {
+    fontSize: 12,
+    color: "#1E40AF",
+    fontWeight: "600",
+    textAlign: "center",
   },
   inputGroup: {
     marginBottom: 20,

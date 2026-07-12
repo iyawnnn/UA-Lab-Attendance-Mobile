@@ -16,6 +16,7 @@ import * as SecureStore from "expo-secure-store";
 import { Picker } from "@react-native-picker/picker";
 import { signAttendancePayload } from "../utils/crypto";
 import { AttendanceApiClient } from "../services/api";
+import { useReadinessGuard } from "../hooks/useReadinessGuard";
 import { styles } from "./AttendanceScreen.styles";
 
 interface AttendanceScreenProps {
@@ -25,6 +26,13 @@ interface AttendanceScreenProps {
 }
 
 export default function AttendanceScreen({ studentId, privateKey, onRevoked }: AttendanceScreenProps) {
+  const {
+    isOnline,
+    isGpsEnabled,
+    hasLocationPermission,
+    requestLocationPermission,
+  } = useReadinessGuard();
+
   const [labRooms, setLabRooms] = useState<string[]>([]);
   const [selectedRoom, setSelectedRoom] = useState("");
   const [roomPin, setRoomPin] = useState("");
@@ -32,7 +40,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Background Revocation Check & Active Room Fetch
   const loadLabRoomsAndCheckStatus = useCallback(async () => {
     try {
       setIsLoadingRooms(true);
@@ -40,7 +47,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       const localPublicKey = await SecureStore.getItemAsync("student_public_key");
       const statusRes: any = await AttendanceApiClient.checkDeviceRevoked(studentId);
 
-      // Detect if key was wiped OR overwritten by another device (e.g., PC Web)
       const isKeyMismatched =
         statusRes?.currentPublicKey &&
         localPublicKey &&
@@ -68,12 +74,10 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     }
   }, [studentId, onRevoked]);
 
-  // Initial load
   useEffect(() => {
     loadLabRoomsAndCheckStatus();
   }, [loadLabRoomsAndCheckStatus]);
 
-  // Real-time background session validation every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       loadLabRoomsAndCheckStatus();
@@ -82,7 +86,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     return () => clearInterval(interval);
   }, [loadLabRoomsAndCheckStatus]);
 
-  // Instant re-verification whenever the student re-opens or switches back to the app
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
@@ -93,7 +96,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     return () => subscription.remove();
   }, [loadLabRoomsAndCheckStatus]);
 
-  // Clock tick
   useEffect(() => {
     function updateClock() {
       const now = new Date();
@@ -109,6 +111,24 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   }, []);
 
   const handleLogAttendance = async () => {
+    if (!isOnline) {
+      Alert.alert("Network Disconnected", "An active internet connection is required to submit cryptographic check-in.");
+      return;
+    }
+
+    if (!isGpsEnabled) {
+      Alert.alert("Location Services Disabled", "Please enable Location Services (GPS) in system settings.");
+      return;
+    }
+
+    if (!hasLocationPermission) {
+      const granted = await requestLocationPermission();
+      if (!granted) {
+        Alert.alert("Permission Required", "Location access is required to verify campus proximity.");
+        return;
+      }
+    }
+
     if (!selectedRoom || !roomPin) {
       Alert.alert("Missing Input", "Please select a room and enter the 4-digit session PIN.");
       return;
@@ -117,13 +137,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     setIsSubmitting(true);
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Denied", "Location access is required to verify proximity.");
-        setIsSubmitting(false);
-        return;
-      }
-
       await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
@@ -146,7 +159,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       } else {
         Alert.alert("Check-In Denied", response.message);
 
-        // Auto-logout if signature or device key validation fails
         const isSecurityOrRevocationError =
           response.message?.includes("DEVICE_REVOKED") ||
           response.message?.includes("not found") ||
@@ -192,6 +204,16 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     );
   };
 
+  const isFormLock = !isOnline || !isGpsEnabled || !hasLocationPermission;
+
+  const getButtonLabel = () => {
+    if (isSubmitting) return "";
+    if (!isOnline) return "REQUIRES INTERNET CONNECTION";
+    if (!isGpsEnabled) return "ENABLE LOCATION SERVICES";
+    if (!hasLocationPermission) return "ALLOW LOCATION ACCESS";
+    return "SECURELY LOG ATTENDANCE";
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
       <View style={styles.statusHero}>
@@ -210,6 +232,54 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
             <Text style={styles.timeValue}>{currentTimestamp || "Synchronizing clocks..."}</Text>
           </View>
         </View>
+
+        {/* Readiness Status Indicators */}
+        <View style={styles.readinessContainer}>
+          <View style={[styles.statusPill, isOnline ? styles.pillSuccess : styles.pillError]}>
+            <View style={[styles.statusDot, { backgroundColor: isOnline ? "#059669" : "#DC2626" }]} />
+            <Text style={[styles.pillText, { color: isOnline ? "#065F46" : "#991B1B" }]}>
+              {isOnline ? "NETWORK CONNECTED" : "NETWORK DISCONNECTED"}
+            </Text>
+          </View>
+
+          <View 
+            style={[
+              styles.statusPill, 
+              isGpsEnabled && hasLocationPermission ? styles.pillSuccess : styles.pillWarning
+            ]}
+          >
+            <View 
+              style={[
+                styles.statusDot, 
+                { backgroundColor: isGpsEnabled && hasLocationPermission ? "#059669" : "#D97706" }
+              ]} 
+            />
+            <Text 
+              style={[
+                styles.pillText, 
+                { color: isGpsEnabled && hasLocationPermission ? "#065F46" : "#92400E" }
+              ]}
+            >
+              {!isGpsEnabled 
+                ? "LOCATION DISABLED" 
+                : !hasLocationPermission 
+                  ? "PERMISSION REQUIRED" 
+                  : "LOCATION ACTIVE"}
+            </Text>
+          </View>
+        </View>
+
+        {isFormLock && (
+          <View style={styles.readinessNotice}>
+            <Text style={styles.readinessNoticeText}>
+              {!isOnline 
+                ? "An active internet connection is required to submit attendance."
+                : !isGpsEnabled
+                  ? "Location services (GPS) are turned off in system settings."
+                  : "Location permission is required for campus geofence validation."}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.inputGroup}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -252,14 +322,17 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         </View>
 
         <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+          style={[
+            styles.submitButton, 
+            (isSubmitting || isFormLock) && styles.submitButtonDisabled
+          ]}
           onPress={handleLogAttendance}
-          disabled={isSubmitting || isLoadingRooms}
+          disabled={isSubmitting || isLoadingRooms || isFormLock}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.buttonText}>SECURELY LOG ATTENDANCE</Text>
+            <Text style={styles.buttonText}>{getButtonLabel()}</Text>
           )}
         </TouchableOpacity>
 
