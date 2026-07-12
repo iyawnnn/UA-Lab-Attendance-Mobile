@@ -1,21 +1,21 @@
 // src/screens/RegistrationScreen.tsx
 
 import React, { useState } from "react";
-import { 
-  Text, 
-  View, 
-  TextInput, 
-  TouchableOpacity, 
-  ScrollView, 
-  ActivityIndicator, 
-  Alert 
+import {
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Alert
 } from "react-native";
 import { generateDeviceKeyPair } from "../utils/crypto";
 import { AttendanceApiClient } from "../services/api";
 import { styles } from "./RegistrationScreen.styles";
 
 interface RegistrationScreenProps {
-  onRegistrationSuccess: (studentId: string, privateKeyBase64: string) => Promise<void>;
+  onRegistrationSuccess: (studentId: string, privateKeyBase64: string, publicKeyBase64: string) => Promise<void>;
 }
 
 export default function RegistrationScreen({ onRegistrationSuccess }: RegistrationScreenProps) {
@@ -75,7 +75,7 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
 
       if (response.success) {
         Alert.alert("Success", response.message || "Device registered successfully!");
-        await onRegistrationSuccess(activeStudentId, keyPair.privateKeyBase64);
+        await onRegistrationSuccess(activeStudentId, keyPair.privateKeyBase64, keyPair.publicKeyBase64);
       } else {
         if (response.message && response.message.toLowerCase().includes("already registered")) {
           Alert.alert(
@@ -83,12 +83,12 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
             "This Student ID is currently linked to an active device. Would you like to recover and transfer authorization to this phone?",
             [
               { text: "Cancel", style: "cancel" },
-              { 
-                text: "Recover Account", 
+              {
+                text: "Recover Account",
                 onPress: () => {
                   setIsRecoveryMode(true);
                   setRecoveryPin("");
-                } 
+                }
               }
             ]
           );
@@ -166,9 +166,9 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
         <Text style={styles.heroSubTitle}>Lab Attendance System</Text>
         <View style={styles.accentBar} />
         <Text style={styles.tagline}>
-          {isRecoveryMode 
-            ? "Revoke old device access using your 4-digit Security PIN." 
-            : isNameLocked 
+          {isRecoveryMode
+            ? "Revoke old device access using your 4-digit Security PIN."
+            : isNameLocked
               ? "Account verified. Set a new Security PIN for this device."
               : "One-time setup for secure verification tracking."}
         </Text>
@@ -189,9 +189,9 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Student ID</Text>
-          <TextInput 
-            style={[styles.input, isNameLocked && !isRecoveryMode && { backgroundColor: "#F1F5F9", color: "#64748B" }]} 
-            placeholder="e.g. 2024-1234" 
+          <TextInput
+            style={[styles.input, isNameLocked && !isRecoveryMode && { backgroundColor: "#F1F5F9", color: "#64748B" }]}
+            placeholder="e.g. 2024-1234"
             placeholderTextColor="#94A3B8"
             value={studentId}
             onChangeText={setStudentId}
@@ -205,9 +205,9 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
           <View style={styles.inputRow}>
             <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
               <Text style={styles.label}>First Name</Text>
-              <TextInput 
-                style={[styles.input, isNameLocked && { backgroundColor: "#F1F5F9", color: "#334155", fontWeight: "700" }]} 
-                placeholder="Jane" 
+              <TextInput
+                style={[styles.input, isNameLocked && { backgroundColor: "#F1F5F9", color: "#334155", fontWeight: "700" }]}
+                placeholder="Jane"
                 placeholderTextColor="#94A3B8"
                 value={firstName}
                 onChangeText={setFirstName}
@@ -216,9 +216,9 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
             </View>
             <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
               <Text style={styles.label}>Last Name</Text>
-              <TextInput 
-                style={[styles.input, isNameLocked && { backgroundColor: "#F1F5F9", color: "#334155", fontWeight: "700" }]} 
-                placeholder="Doe" 
+              <TextInput
+                style={[styles.input, isNameLocked && { backgroundColor: "#F1F5F9", color: "#334155", fontWeight: "700" }]}
+                placeholder="Doe"
                 placeholderTextColor="#94A3B8"
                 value={lastName}
                 onChangeText={setLastName}
@@ -232,9 +232,9 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
           <Text style={styles.label}>
             {isRecoveryMode ? "Current Security PIN" : isNameLocked ? "New Security PIN" : "Security PIN"}
           </Text>
-          <TextInput 
-            style={styles.input} 
-            placeholder={isRecoveryMode ? "Enter 4-Digit PIN" : "Create 4-Digit PIN"} 
+          <TextInput
+            style={styles.input}
+            placeholder={isRecoveryMode ? "Enter 4-Digit PIN" : "Create 4-Digit PIN"}
             placeholderTextColor="#94A3B8"
             maxLength={4}
             secureTextEntry
@@ -244,8 +244,8 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
           />
         </View>
 
-        <TouchableOpacity 
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
           onPress={isRecoveryMode ? handleRecoverDevice : handleRegister}
           disabled={isSubmitting}
         >
@@ -259,8 +259,8 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
         </TouchableOpacity>
 
         {isNameLocked && !isRecoveryMode ? (
-          <TouchableOpacity 
-            style={{ alignSelf: "center", marginTop: 20, marginBottom: 24 }} 
+          <TouchableOpacity
+            style={{ alignSelf: "center", marginTop: 20, marginBottom: 24 }}
             onPress={handleClearLockedAccount}
           >
             <Text style={{ color: "#64748B", fontWeight: "600", fontSize: 13 }}>
@@ -268,16 +268,16 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
             </Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
-            style={{ alignSelf: "center", marginTop: 20, marginBottom: 24 }} 
+          <TouchableOpacity
+            style={{ alignSelf: "center", marginTop: 20, marginBottom: 24 }}
             onPress={() => {
               setIsRecoveryMode(!isRecoveryMode);
               setRecoveryPin("");
             }}
           >
             <Text style={{ color: "#011B51", fontWeight: "600", fontSize: 13 }}>
-              {isRecoveryMode 
-                ? "← Return to New Device Registration" 
+              {isRecoveryMode
+                ? "← Return to New Device Registration"
                 : "Already registered on another device? Recover Account"}
             </Text>
           </TouchableOpacity>

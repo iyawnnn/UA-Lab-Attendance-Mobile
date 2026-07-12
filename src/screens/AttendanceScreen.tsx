@@ -12,6 +12,7 @@ import {
   AppState
 } from "react-native";
 import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
 import { Picker } from "@react-native-picker/picker";
 import { signAttendancePayload } from "../utils/crypto";
 import { AttendanceApiClient } from "../services/api";
@@ -36,9 +37,16 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     try {
       setIsLoadingRooms(true);
 
-      // 1. Silent revocation & key-transfer verification
-      const statusRes = await AttendanceApiClient.checkDeviceRevoked(studentId);
-      if (statusRes.success && statusRes.isRevoked) {
+      const localPublicKey = await SecureStore.getItemAsync("student_public_key");
+      const statusRes: any = await AttendanceApiClient.checkDeviceRevoked(studentId);
+
+      // Detect if key was wiped OR overwritten by another device (e.g., PC Web)
+      const isKeyMismatched =
+        statusRes?.currentPublicKey &&
+        localPublicKey &&
+        statusRes.currentPublicKey !== localPublicKey;
+
+      if (statusRes?.isRevoked || isKeyMismatched) {
         Alert.alert(
           "Session Expired",
           "This device has been deauthorized or your account was authorized on another device. Please register or recover your account again.",
@@ -47,7 +55,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         return;
       }
 
-      // 2. Fetch active facilities
       const response = await AttendanceApiClient.fetchLabRooms();
       if (response.success && Array.isArray(response.data)) {
         setLabRooms(response.data);
