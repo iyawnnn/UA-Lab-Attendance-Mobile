@@ -1,5 +1,3 @@
-// src/services/api.ts
-
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export interface RegisterPayload {
@@ -69,6 +67,24 @@ export const AttendanceApiClient = {
       return {
         success: false,
         message: "Network request failed while fetching laboratory facilities.",
+      };
+    }
+  },
+
+  async fetchStudentHistory(studentId: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/api/student/history?studentId=${encodeURIComponent(studentId)}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      return await response.json();
+    } catch (error) {
+      return {
+        success: false,
+        message: "Network request failed while fetching attendance history.",
       };
     }
   },

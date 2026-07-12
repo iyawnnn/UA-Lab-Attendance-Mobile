@@ -9,7 +9,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  AppState
+  AppState,
+  RefreshControl
 } from "react-native";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
@@ -25,6 +26,21 @@ interface AttendanceScreenProps {
   onRevoked: () => Promise<void>;
 }
 
+interface AttendanceRecord {
+  id: number;
+  student_id: string;
+  timestamp: string;
+  status: string;
+  signature?: string;
+  schedule?: {
+    course_code: string;
+    section: string;
+    lab_room: string;
+    schedule: string;
+    date: string;
+  };
+}
+
 export default function AttendanceScreen({ studentId, privateKey, onRevoked }: AttendanceScreenProps) {
   const {
     isOnline,
@@ -33,12 +49,18 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     requestLocationPermission,
   } = useReadinessGuard();
 
+  const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
+
   const [labRooms, setLabRooms] = useState<string[]>([]);
   const [selectedRoom, setSelectedRoom] = useState("");
   const [roomPin, setRoomPin] = useState("");
   const [currentTimestamp, setCurrentTimestamp] = useState("");
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [historyLogs, setHistoryLogs] = useState<AttendanceRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isRefreshingHistory, setIsRefreshingHistory] = useState(false);
 
   const loadLabRoomsAndCheckStatus = useCallback(async () => {
     try {
@@ -74,9 +96,31 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     }
   }, [studentId, onRevoked]);
 
+  const fetchHistory = useCallback(async () => {
+    if (!studentId) return;
+    try {
+      setIsLoadingHistory(true);
+      const res = await AttendanceApiClient.fetchStudentHistory(studentId);
+      if (res.success && Array.isArray(res.data)) {
+        setHistoryLogs(res.data);
+      }
+    } catch (error) {
+      console.warn("Error fetching history:", error);
+    } finally {
+      setIsLoadingHistory(false);
+      setIsRefreshingHistory(false);
+    }
+  }, [studentId]);
+
   useEffect(() => {
     loadLabRoomsAndCheckStatus();
   }, [loadLabRoomsAndCheckStatus]);
+
+  useEffect(() => {
+    if (activeTab === "history") {
+      fetchHistory();
+    }
+  }, [activeTab, fetchHistory]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -90,11 +134,14 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
         loadLabRoomsAndCheckStatus();
+        if (activeTab === "history") {
+          fetchHistory();
+        }
       }
     });
 
     return () => subscription.remove();
-  }, [loadLabRoomsAndCheckStatus]);
+  }, [loadLabRoomsAndCheckStatus, activeTab, fetchHistory]);
 
   useEffect(() => {
     function updateClock() {
@@ -156,6 +203,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       if (response.success) {
         Alert.alert("Attendance Logged", response.message);
         setRoomPin("");
+        fetchHistory();
       } else {
         Alert.alert("Check-In Denied", response.message);
 
@@ -215,131 +263,244 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.scrollContainer}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        activeTab === "history" ? (
+          <RefreshControl
+            refreshing={isRefreshingHistory}
+            onRefresh={() => {
+              setIsRefreshingHistory(true);
+              fetchHistory();
+            }}
+          />
+        ) : undefined
+      }
+    >
       <View style={styles.statusHero}>
         <View style={styles.studentBadge}>
           <Text style={styles.studentBadgeText}>ID: {studentId}</Text>
         </View>
-        <Text style={styles.heroTitle}>Log Attendance</Text>
+        <Text style={styles.heroTitle}>Student Portal</Text>
         <View style={styles.accentBar} />
         <Text style={styles.tagline}>Secure cryptographic validation mapping tracker.</Text>
-      </View>
 
-      <View style={styles.contentContainer}>
-        <View style={styles.timeCard}>
-          <View style={styles.timeDetails}>
-            <Text style={styles.timeLabel}>Device Synced Time</Text>
-            <Text style={styles.timeValue}>{currentTimestamp || "Synchronizing clocks..."}</Text>
-          </View>
-        </View>
-
-        {/* Readiness Status Indicators */}
-        <View style={styles.readinessContainer}>
-          <View style={[styles.statusPill, isOnline ? styles.pillSuccess : styles.pillError]}>
-            <View style={[styles.statusDot, { backgroundColor: isOnline ? "#059669" : "#DC2626" }]} />
-            <Text style={[styles.pillText, { color: isOnline ? "#065F46" : "#991B1B" }]}>
-              {isOnline ? "NETWORK CONNECTED" : "NETWORK DISCONNECTED"}
-            </Text>
-          </View>
-
-          <View 
+        {/* Tab Segment Switcher */}
+        <View style={styles.tabSegmentContainer}>
+          <TouchableOpacity
             style={[
-              styles.statusPill, 
-              isGpsEnabled && hasLocationPermission ? styles.pillSuccess : styles.pillWarning
+              styles.tabSegmentButton,
+              activeTab === "checkin" && styles.tabSegmentActive,
             ]}
+            onPress={() => setActiveTab("checkin")}
           >
-            <View 
+            <Text
               style={[
-                styles.statusDot, 
-                { backgroundColor: isGpsEnabled && hasLocationPermission ? "#059669" : "#D97706" }
-              ]} 
-            />
-            <Text 
-              style={[
-                styles.pillText, 
-                { color: isGpsEnabled && hasLocationPermission ? "#065F46" : "#92400E" }
+                styles.tabSegmentText,
+                activeTab === "checkin" && styles.tabSegmentTextActive,
               ]}
             >
-              {!isGpsEnabled 
-                ? "LOCATION DISABLED" 
-                : !hasLocationPermission 
-                  ? "PERMISSION REQUIRED" 
-                  : "LOCATION ACTIVE"}
+              LOG CHECK-IN
             </Text>
-          </View>
-        </View>
+          </TouchableOpacity>
 
-        {isFormLock && (
-          <View style={styles.readinessNotice}>
-            <Text style={styles.readinessNoticeText}>
-              {!isOnline 
-                ? "An active internet connection is required to submit attendance."
-                : !isGpsEnabled
-                  ? "Location services (GPS) are turned off in system settings."
-                  : "Location permission is required for campus geofence validation."}
+          <TouchableOpacity
+            style={[
+              styles.tabSegmentButton,
+              activeTab === "history" && styles.tabSegmentActive,
+            ]}
+            onPress={() => setActiveTab("history")}
+          >
+            <Text
+              style={[
+                styles.tabSegmentText,
+                activeTab === "history" && styles.tabSegmentTextActive,
+              ]}
+            >
+              ATTENDANCE HISTORY
             </Text>
-          </View>
-        )}
-
-        <View style={styles.inputGroup}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <Text style={styles.label}>Facility Selection</Text>
-            <TouchableOpacity onPress={loadLabRoomsAndCheckStatus} disabled={isLoadingRooms}>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: "#011B51" }}>
-                {isLoadingRooms ? "Refreshing..." : "Refresh Rooms"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.pickerContainer}>
-            {isLoadingRooms ? (
-              <ActivityIndicator size="small" color="#011B51" style={{ padding: 14 }} />
-            ) : (
-              <Picker
-                selectedValue={selectedRoom}
-                onValueChange={(itemValue) => setSelectedRoom(itemValue)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select lab room..." value="" />
-                {labRooms.map((room, index) => (
-                  <Picker.Item key={index} label={room} value={room} />
-                ))}
-              </Picker>
-            )}
-          </View>
+          </TouchableOpacity>
         </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Room PIN</Text>
-          <TextInput
-            style={styles.pinInput}
-            placeholder="0000"
-            placeholderTextColor="#94A3B8"
-            maxLength={4}
-            keyboardType="number-pad"
-            value={roomPin}
-            onChangeText={(val) => setRoomPin(val.replace(/\D/g, ""))}
-          />
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.submitButton, 
-            (isSubmitting || isFormLock) && styles.submitButtonDisabled
-          ]}
-          onPress={handleLogAttendance}
-          disabled={isSubmitting || isLoadingRooms || isFormLock}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>{getButtonLabel()}</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.revokeButton} onPress={handleDeviceRevocation}>
-          <Text style={styles.revokeButtonText}>Deauthorize This Device</Text>
-        </TouchableOpacity>
       </View>
+
+      {activeTab === "checkin" ? (
+        <View style={styles.contentContainer}>
+          <View style={styles.timeCard}>
+            <View style={styles.timeDetails}>
+              <Text style={styles.timeLabel}>Device Synced Time</Text>
+              <Text style={styles.timeValue}>{currentTimestamp || "Synchronizing clocks..."}</Text>
+            </View>
+          </View>
+
+          {/* Readiness Status Indicators */}
+          <View style={styles.readinessContainer}>
+            <View style={[styles.statusPill, isOnline ? styles.pillSuccess : styles.pillError]}>
+              <View style={[styles.statusDot, { backgroundColor: isOnline ? "#059669" : "#DC2626" }]} />
+              <Text style={[styles.pillText, { color: isOnline ? "#065F46" : "#991B1B" }]}>
+                {isOnline ? "NETWORK CONNECTED" : "NETWORK DISCONNECTED"}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.statusPill,
+                isGpsEnabled && hasLocationPermission ? styles.pillSuccess : styles.pillWarning
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: isGpsEnabled && hasLocationPermission ? "#059669" : "#D97706" }
+                ]}
+              />
+              <Text
+                style={[
+                  styles.pillText,
+                  { color: isGpsEnabled && hasLocationPermission ? "#065F46" : "#92400E" }
+                ]}
+              >
+                {!isGpsEnabled
+                  ? "LOCATION DISABLED"
+                  : !hasLocationPermission
+                    ? "PERMISSION REQUIRED"
+                    : "LOCATION ACTIVE"}
+              </Text>
+            </View>
+          </View>
+
+          {isFormLock && (
+            <View style={styles.readinessNotice}>
+              <Text style={styles.readinessNoticeText}>
+                {!isOnline
+                  ? "An active internet connection is required to submit attendance."
+                  : !isGpsEnabled
+                    ? "Location services (GPS) are turned off in system settings."
+                    : "Location permission is required for campus geofence validation."}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.inputGroup}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <Text style={styles.label}>Facility Selection</Text>
+              <TouchableOpacity onPress={loadLabRoomsAndCheckStatus} disabled={isLoadingRooms}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#011B51" }}>
+                  {isLoadingRooms ? "Refreshing..." : "Refresh Rooms"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.pickerContainer}>
+              {isLoadingRooms ? (
+                <ActivityIndicator size="small" color="#011B51" style={{ padding: 14 }} />
+              ) : (
+                <Picker
+                  selectedValue={selectedRoom}
+                  onValueChange={(itemValue) => setSelectedRoom(itemValue)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select lab room..." value="" />
+                  {labRooms.map((room, index) => (
+                    <Picker.Item key={index} label={room} value={room} />
+                  ))}
+                </Picker>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Room PIN</Text>
+            <TextInput
+              style={styles.pinInput}
+              placeholder="0000"
+              placeholderTextColor="#94A3B8"
+              maxLength={4}
+              keyboardType="number-pad"
+              value={roomPin}
+              onChangeText={(val) => setRoomPin(val.replace(/\D/g, ""))}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              (isSubmitting || isFormLock) && styles.submitButtonDisabled
+            ]}
+            onPress={handleLogAttendance}
+            disabled={isSubmitting || isLoadingRooms || isFormLock}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>{getButtonLabel()}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.revokeButton} onPress={handleDeviceRevocation}>
+            <Text style={styles.revokeButtonText}>Deauthorize This Device</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.contentContainer}>
+          <Text style={styles.historyHeader}>Recent Attendance Logs</Text>
+
+          {isLoadingHistory && !isRefreshingHistory ? (
+            <ActivityIndicator size="large" color="#011B51" style={{ marginVertical: 32 }} />
+          ) : historyLogs.length === 0 ? (
+            <View style={styles.emptyStateBox}>
+              <Text style={styles.emptyStateText}>
+                No past attendance records found for this student ID.
+              </Text>
+            </View>
+          ) : (
+            historyLogs.map((log) => {
+              const dateObj = new Date(log.timestamp);
+              const formattedDate = dateObj.toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+              const formattedTime = dateObj.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+
+              const isLate = log.status === "LATE";
+              const isManual = log.signature && log.signature.includes("OVERRIDE");
+
+              return (
+                <View key={log.id} style={styles.historyCard}>
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyCourseText}>
+                      {log.schedule?.course_code || "CLASS SESSION"} (Sec {log.schedule?.section || "N/A"})
+                    </Text>
+                    <View style={isLate ? styles.badgeLate : styles.badgeOnTime}>
+                      <Text style={isLate ? styles.badgeLateText : styles.badgeOnTimeText}>
+                        {isLate ? "LATE" : "ON TIME"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.historySubText}>
+                    Facility: {log.schedule?.lab_room || "Laboratory"}
+                  </Text>
+
+                  {isManual && (
+                    <View style={styles.badgeOverride}>
+                      <Text style={styles.badgeOverrideText}>Manual Override</Text>
+                    </View>
+                  )}
+
+                  <Text style={styles.historyDateText}>
+                    {formattedDate} • {formattedTime}
+                  </Text>
+                </View>
+              );
+            })
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 }
