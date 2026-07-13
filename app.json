@@ -17,7 +17,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.ua.studentattendance"
+      "package": "com.ua.studentattendance",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -30,6 +34,11 @@
           "locationForegroundPermission": "Allow UA Student Attendance to access your location to verify lab proximity."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "57f4b565-4e9f-4bbe-8f3a-9d2eb47335c2"
+      }
+    }
   }
 }

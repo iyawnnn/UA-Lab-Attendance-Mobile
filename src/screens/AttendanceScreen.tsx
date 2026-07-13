@@ -18,6 +18,7 @@ import { Picker } from "@react-native-picker/picker";
 import { signAttendancePayload } from "../utils/crypto";
 import { AttendanceApiClient } from "../services/api";
 import { useReadinessGuard } from "../hooks/useReadinessGuard";
+import LocationDisclosureModal from "../components/LocationDisclosureModal";
 import { styles } from "./AttendanceScreen.styles";
 
 interface AttendanceScreenProps {
@@ -57,6 +58,8 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   const [currentTimestamp, setCurrentTimestamp] = useState("");
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
 
   const [historyLogs, setHistoryLogs] = useState<AttendanceRecord[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -157,6 +160,17 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     return () => clearInterval(interval);
   }, []);
 
+  const handleLocationAccept = async () => {
+    setShowLocationDisclosure(false);
+    const granted = await requestLocationPermission();
+    if (!granted) {
+      Alert.alert(
+        "Permission Denied",
+        "Location permission is required to verify campus proximity during attendance submission."
+      );
+    }
+  };
+
   const handleLogAttendance = async () => {
     if (!isOnline) {
       Alert.alert("Network Disconnected", "An active internet connection is required to submit cryptographic check-in.");
@@ -169,11 +183,8 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     }
 
     if (!hasLocationPermission) {
-      const granted = await requestLocationPermission();
-      if (!granted) {
-        Alert.alert("Permission Required", "Location access is required to verify campus proximity.");
-        return;
-      }
+      setShowLocationDisclosure(true);
+      return;
     }
 
     if (!selectedRoom || !roomPin) {
@@ -278,6 +289,12 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         ) : undefined
       }
     >
+      <LocationDisclosureModal
+        visible={showLocationDisclosure}
+        onAccept={handleLocationAccept}
+        onDecline={() => setShowLocationDisclosure(false)}
+      />
+
       <View style={styles.statusHero}>
         <View style={styles.studentBadge}>
           <Text style={styles.studentBadgeText}>ID: {studentId}</Text>
@@ -342,7 +359,13 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
               </Text>
             </View>
 
-            <View
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!hasLocationPermission) {
+                  setShowLocationDisclosure(true);
+                }
+              }}
               style={[
                 styles.statusPill,
                 isGpsEnabled && hasLocationPermission ? styles.pillSuccess : styles.pillWarning
@@ -366,19 +389,27 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
                     ? "PERMISSION REQUIRED"
                     : "LOCATION ACTIVE"}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {isFormLock && (
-            <View style={styles.readinessNotice}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!hasLocationPermission) {
+                  setShowLocationDisclosure(true);
+                }
+              }}
+              style={styles.readinessNotice}
+            >
               <Text style={styles.readinessNoticeText}>
                 {!isOnline
                   ? "An active internet connection is required to submit attendance."
                   : !isGpsEnabled
                     ? "Location services (GPS) are turned off in system settings."
-                    : "Location permission is required for campus geofence validation."}
+                    : "Location permission is required for campus geofence validation. Tap to allow."}
               </Text>
-            </View>
+            </TouchableOpacity>
           )}
 
           <View style={styles.inputGroup}>
@@ -427,7 +458,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
               (isSubmitting || isFormLock) && styles.submitButtonDisabled
             ]}
             onPress={handleLogAttendance}
-            disabled={isSubmitting || isLoadingRooms || isFormLock}
+            disabled={isSubmitting || isLoadingRooms}
           >
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" />
