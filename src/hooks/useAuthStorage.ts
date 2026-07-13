@@ -1,5 +1,3 @@
-// src/hooks/useAuthStorage.ts
-
 import { useState, useEffect, useCallback } from "react";
 import * as SecureStore from "expo-secure-store";
 

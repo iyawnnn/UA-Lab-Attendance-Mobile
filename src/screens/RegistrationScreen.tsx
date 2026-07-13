@@ -1,5 +1,3 @@
-// src/screens/RegistrationScreen.tsx
-
 import React, { useState } from "react";
 import {
   Text,

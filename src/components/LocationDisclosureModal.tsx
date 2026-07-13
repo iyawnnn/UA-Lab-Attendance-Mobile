@@ -1,5 +1,3 @@
-// src/components/LocationDisclosureModal.tsx
-
 import React from "react";
 import {
   Modal,

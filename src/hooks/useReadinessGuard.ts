@@ -1,5 +1,3 @@
-// src/hooks/useReadinessGuard.ts
-
 import { useState, useEffect, useCallback } from "react";
 import * as Location from "expo-location";
 import { AppState } from "react-native";
@@ -22,15 +20,13 @@ export function useReadinessGuard(): ReadinessState {
   const checkReadiness = useCallback(async () => {
     setIsChecking(true);
     try {
-      // 1. Check GPS Hardware Service status
       const servicesEnabled = await Location.hasServicesEnabledAsync();
       setIsGpsEnabled(servicesEnabled);
 
-      // 2. Check Foreground Location Permissions
       const perm = await Location.getForegroundPermissionsAsync();
       setHasLocationPermission(perm.granted);
 
-      // 3. Verify Internet Connectivity via lightweight ping
+      // Verify server reachability using an abortable GET ping to the rooms endpoint
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);

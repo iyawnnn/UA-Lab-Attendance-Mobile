@@ -1,5 +1,3 @@
-// src/screens/RegistrationScreen.styles.ts
-
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({

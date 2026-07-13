@@ -1,5 +1,3 @@
-// src/screens/AttendanceScreen.tsx
-
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Text,
