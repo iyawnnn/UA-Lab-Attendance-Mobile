@@ -8,14 +8,14 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
+import {
+  GoogleSignin,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 import * as SecureStore from "expo-secure-store";
 import { generateDeviceKeyPair } from "../utils/crypto";
 import { AttendanceApiClient } from "../services/api";
 import { styles } from "./RegistrationScreen.styles";
-
-WebBrowser.maybeCompleteAuthSession();
 
 interface RegistrationScreenProps {
   onRegistrationSuccess: (
@@ -40,53 +40,60 @@ export default function RegistrationScreen({
   const [studentId, setStudentId] = useState("");
   const [recoveryPin, setRecoveryPin] = useState("");
 
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
-  const androidClientId =
-    process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID ||
-    "874121249009-m2ivtinvdc3c7pgve649htinpnhk5snn.apps.googleusercontent.com";
-
-  /* Allows expo-auth-session to dynamically resolve redirect URIs per runtime environment */
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId,
-    androidClientId,
-    iosClientId: webClientId,
-  });
-
-  /* Processes OAuth token payload upon native picker or browser return */
+  /* Binds the web client ID to validate backend token audience */
   useEffect(() => {
-    if (response?.type === "success") {
-      const idToken =
-        response.params?.id_token || response.authentication?.idToken;
-
-      if (idToken) {
-        handleGoogleAuthentication(idToken);
-      } else {
-        Alert.alert("Authentication Error", "Failed to parse Google ID token.");
-        setIsSubmitting(false);
+    try {
+      if (GoogleSignin && typeof GoogleSignin.configure === "function") {
+        GoogleSignin.configure({
+          webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+          offlineAccess: false,
+        });
       }
-    } else if (response?.type === "error") {
-      Alert.alert("Authentication Error", "Google authentication failed.");
-      setIsSubmitting(false);
-    } else if (response?.type === "dismiss") {
-      setIsSubmitting(false);
+    } catch (error) {
+      console.warn("GoogleSignin configuration warning:", error);
     }
-  }, [response]);
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setIsSubmitting(true);
     try {
-      const res = await promptAsync();
-      if (res?.type !== "success") {
+      if (!GoogleSignin || typeof GoogleSignin.hasPlayServices !== "function") {
+        Alert.alert(
+          "Environment Error",
+          "Google Sign-In requires native client context. Launch using the built app binary."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+
+      const idToken = response.data?.idToken;
+
+      if (idToken) {
+        await handleGoogleAuthentication(idToken);
+      } else {
+        Alert.alert("Authentication Error", "Failed to retrieve Google ID token.");
         setIsSubmitting(false);
       }
-    } catch (error) {
-      console.error("Google Auth Session Launch Error:", error);
-      Alert.alert("Error", "Unable to open Google authentication window.");
+    } catch (error: any) {
       setIsSubmitting(false);
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        return;
+      }
+      if (error.code === statusCodes.IN_PROGRESS) {
+        return;
+      }
+      if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert("Error", "Google Play Services are unavailable on this device.");
+        return;
+      }
+      console.error("Native Google Sign-In Error:", error);
+      Alert.alert("Error", "Google authentication failed.");
     }
   };
 
-  /* Verifies Google ID token against backend domain security policies */
   const handleGoogleAuthentication = async (idToken: string) => {
     setIsSubmitting(true);
     setGoogleIdToken(idToken);
@@ -100,7 +107,6 @@ export default function RegistrationScreen({
         return;
       }
 
-      /* Re-binds local keys or generates new keypair for existing student accounts */
       if (authResult.isRegistered && authResult.student && authResult.sessionToken) {
         let currentPrivateKey = await SecureStore.getItemAsync("student_private_key");
         let currentPublicKey = await SecureStore.getItemAsync("student_public_key");
@@ -121,7 +127,6 @@ export default function RegistrationScreen({
         return;
       }
 
-      /* Routes unregistered institutional emails to first-time onboarding */
       if (!authResult.isRegistered && authResult.googleProfile) {
         setGoogleEmail(authResult.googleProfile.email);
         setFirstName(authResult.googleProfile.firstName);
@@ -135,7 +140,6 @@ export default function RegistrationScreen({
     }
   };
 
-  /* Submits onboarding credentials and binds hardware ECDSA keys */
   const handleCompleteOnboarding = async () => {
     const activeStudentId = studentId.trim();
     const activePin = recoveryPin.trim();
@@ -213,9 +217,9 @@ export default function RegistrationScreen({
             <TouchableOpacity
               style={[
                 styles.googleButton,
-                (!request || isSubmitting) && styles.googleButtonDisabled,
+                isSubmitting && styles.googleButtonDisabled,
               ]}
-              disabled={!request || isSubmitting}
+              disabled={isSubmitting}
               onPress={handleGoogleSignIn}
             >
               {isSubmitting ? (

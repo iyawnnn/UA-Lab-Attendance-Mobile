@@ -29,14 +29,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
       [
         "expo-location",
         {
           "locationForegroundPermission": "Allow UA Student Attendance to access your location to verify lab proximity."
         }
       ],
-      "expo-web-browser"
+      "@react-native-google-signin/google-signin",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
