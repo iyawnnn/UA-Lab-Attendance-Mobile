@@ -2,6 +2,8 @@
   "expo": {
     "name": "ua-student-attendance",
     "slug": "ua-student-attendance",
+    "owner": "iyawnnn",
+    "scheme": "com.ua.studentattendance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,7 +35,8 @@
         {
           "locationForegroundPermission": "Allow UA Student Attendance to access your location to verify lab proximity."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

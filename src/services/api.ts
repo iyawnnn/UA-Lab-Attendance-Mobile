@@ -1,6 +1,27 @@
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
+export interface GoogleAuthResponse {
+  success: boolean;
+  message?: string;
+  isRegistered?: boolean;
+  sessionToken?: string;
+  student?: {
+    id: number;
+    studentId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    publicKey: string;
+  };
+  googleProfile?: {
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
 export interface RegisterPayload {
+  idToken: string;
   studentId: string;
   firstName: string;
   lastName: string;
@@ -21,9 +42,29 @@ export interface ApiResponse {
   message: string;
   isRevoked?: boolean;
   data?: any;
+  sessionToken?: string;
+  student?: any;
 }
 
 export const AttendanceApiClient = {
+  /* Authenticate Google ID token with Next.js backend */
+  async googleAuthStudent(idToken: string): Promise<GoogleAuthResponse> {
+    try {
+      const response = await fetch(`${BASE_URL}/api/student/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      return await response.json();
+    } catch (error) {
+      return {
+        success: false,
+        message: "Network request failed during Google authentication.",
+      };
+    }
+  },
+
+  /* Register first-time student profile and bind ECDSA key pair */
   async registerStudent(payload: RegisterPayload): Promise<ApiResponse> {
     try {
       const response = await fetch(`${BASE_URL}/api/student/register`, {
@@ -103,27 +144,6 @@ export const AttendanceApiClient = {
       return {
         success: false,
         message: "Network request failed while checking device status.",
-      };
-    }
-  },
-
-  async recoverDevice(
-    studentId: string,
-    pin: string,
-    newPublicKey?: string,
-    newPin?: string
-  ): Promise<ApiResponse> {
-    try {
-      const response = await fetch(`${BASE_URL}/api/student/recover`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, pin, newPublicKey, newPin }),
-      });
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        message: "Network request failed while recovering device.",
       };
     }
   },

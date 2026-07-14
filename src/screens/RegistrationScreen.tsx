@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Text,
   View,
@@ -6,55 +6,150 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
 } from "react-native";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import * as SecureStore from "expo-secure-store";
 import { generateDeviceKeyPair } from "../utils/crypto";
 import { AttendanceApiClient } from "../services/api";
 import { styles } from "./RegistrationScreen.styles";
 
+WebBrowser.maybeCompleteAuthSession();
+
 interface RegistrationScreenProps {
-  onRegistrationSuccess: (studentId: string, privateKeyBase64: string, publicKeyBase64: string) => Promise<void>;
+  onRegistrationSuccess: (
+    studentId: string,
+    email: string,
+    sessionToken: string,
+    privateKeyBase64: string,
+    publicKeyBase64: string
+  ) => Promise<void>;
 }
 
-export default function RegistrationScreen({ onRegistrationSuccess }: RegistrationScreenProps) {
-  const [studentId, setStudentId] = useState("");
+export default function RegistrationScreen({
+  onRegistrationSuccess,
+}: RegistrationScreenProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOnboardingStep, setIsOnboardingStep] = useState(false);
+
+  const [googleIdToken, setGoogleIdToken] = useState("");
+  const [googleEmail, setGoogleEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [studentId, setStudentId] = useState("");
   const [recoveryPin, setRecoveryPin] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
-  const [isNameLocked, setIsNameLocked] = useState(false);
 
-  const handleIdCheck = async () => {
-    if (studentId.trim().length >= 4 && !isNameLocked && !isRecoveryMode) {
-      try {
-        const res: any = await AttendanceApiClient.checkDeviceRevoked(studentId.trim());
-        const fetchedFirstName = res?.firstName || res?.first_name;
-        const fetchedLastName = res?.lastName || res?.last_name;
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+  const androidClientId =
+    process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID ||
+    "874121249009-m2ivtinvdc3c7pgve649htinpnhk5snn.apps.googleusercontent.com";
 
-        if (res?.isRevoked && fetchedFirstName) {
-          setFirstName(fetchedFirstName);
-          setLastName(fetchedLastName || "");
-          setIsNameLocked(true);
-        }
-      } catch (err) {
-        console.warn("Silent ID check error:", err);
+  /* Allows expo-auth-session to dynamically resolve redirect URIs per runtime environment */
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    webClientId,
+    androidClientId,
+    iosClientId: webClientId,
+  });
+
+  /* Processes OAuth token payload upon native picker or browser return */
+  useEffect(() => {
+    if (response?.type === "success") {
+      const idToken =
+        response.params?.id_token || response.authentication?.idToken;
+
+      if (idToken) {
+        handleGoogleAuthentication(idToken);
+      } else {
+        Alert.alert("Authentication Error", "Failed to parse Google ID token.");
+        setIsSubmitting(false);
       }
+    } else if (response?.type === "error") {
+      Alert.alert("Authentication Error", "Google authentication failed.");
+      setIsSubmitting(false);
+    } else if (response?.type === "dismiss") {
+      setIsSubmitting(false);
+    }
+  }, [response]);
+
+  const handleGoogleSignIn = async () => {
+    setIsSubmitting(true);
+    try {
+      const res = await promptAsync();
+      if (res?.type !== "success") {
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error("Google Auth Session Launch Error:", error);
+      Alert.alert("Error", "Unable to open Google authentication window.");
+      setIsSubmitting(false);
     }
   };
 
-  const handleRegister = async () => {
-    const activeStudentId = studentId.trim();
-    const activeFirstName = firstName.trim() || "Student";
-    const activeLastName = lastName.trim() || "User";
+  /* Verifies Google ID token against backend domain security policies */
+  const handleGoogleAuthentication = async (idToken: string) => {
+    setIsSubmitting(true);
+    setGoogleIdToken(idToken);
 
-    if (!activeStudentId || !recoveryPin) {
-      Alert.alert("Missing Parameters", "Please enter your Student ID and 4-digit Security PIN.");
+    try {
+      const authResult = await AttendanceApiClient.googleAuthStudent(idToken);
+
+      if (!authResult.success) {
+        Alert.alert("Access Denied", authResult.message || "Authentication rejected.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      /* Re-binds local keys or generates new keypair for existing student accounts */
+      if (authResult.isRegistered && authResult.student && authResult.sessionToken) {
+        let currentPrivateKey = await SecureStore.getItemAsync("student_private_key");
+        let currentPublicKey = await SecureStore.getItemAsync("student_public_key");
+
+        if (!currentPrivateKey || !currentPublicKey) {
+          const keyPair = generateDeviceKeyPair();
+          currentPrivateKey = keyPair.privateKeyBase64;
+          currentPublicKey = keyPair.publicKeyBase64;
+        }
+
+        await onRegistrationSuccess(
+          authResult.student.studentId,
+          authResult.student.email,
+          authResult.sessionToken,
+          currentPrivateKey,
+          currentPublicKey
+        );
+        return;
+      }
+
+      /* Routes unregistered institutional emails to first-time onboarding */
+      if (!authResult.isRegistered && authResult.googleProfile) {
+        setGoogleEmail(authResult.googleProfile.email);
+        setFirstName(authResult.googleProfile.firstName);
+        setLastName(authResult.googleProfile.lastName);
+        setIsOnboardingStep(true);
+      }
+    } catch (error) {
+      Alert.alert("Network Error", "Failed to reach authentication backend.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /* Submits onboarding credentials and binds hardware ECDSA keys */
+  const handleCompleteOnboarding = async () => {
+    const activeStudentId = studentId.trim();
+    const activePin = recoveryPin.trim();
+
+    if (!activeStudentId || !activePin) {
+      Alert.alert(
+        "Missing Input",
+        "Please provide your Student ID and 6-digit Recovery PIN."
+      );
       return;
     }
 
-    if (recoveryPin.length !== 4 || isNaN(Number(recoveryPin))) {
-      Alert.alert("Invalid PIN", "Security PIN must be exactly 4 digits.");
+    if (activePin.length !== 6 || isNaN(Number(activePin))) {
+      Alert.alert("Invalid Input", "Recovery PIN must consist of 6 numeric digits.");
       return;
     }
 
@@ -63,222 +158,160 @@ export default function RegistrationScreen({ onRegistrationSuccess }: Registrati
     try {
       const keyPair = generateDeviceKeyPair();
 
-      const response = await AttendanceApiClient.registerStudent({
+      const regResult = await AttendanceApiClient.registerStudent({
+        idToken: googleIdToken,
         studentId: activeStudentId,
-        firstName: activeFirstName,
-        lastName: activeLastName,
+        firstName,
+        lastName,
         publicKey: keyPair.publicKeyBase64,
-        recoveryPin,
+        recoveryPin: activePin,
       });
 
-      if (response.success) {
-        Alert.alert("Success", response.message || "Device registered successfully!");
-        await onRegistrationSuccess(activeStudentId, keyPair.privateKeyBase64, keyPair.publicKeyBase64);
+      if (regResult.success && regResult.sessionToken) {
+        Alert.alert("Registration Complete", regResult.message);
+        await onRegistrationSuccess(
+          activeStudentId,
+          googleEmail,
+          regResult.sessionToken,
+          keyPair.privateKeyBase64,
+          keyPair.publicKeyBase64
+        );
       } else {
-        if (response.message && response.message.toLowerCase().includes("already registered")) {
-          Alert.alert(
-            "Device Already Registered",
-            "This Student ID is currently linked to an active device. Would you like to recover and transfer authorization to this phone?",
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Recover Account",
-                onPress: () => {
-                  setIsRecoveryMode(true);
-                  setRecoveryPin("");
-                }
-              }
-            ]
-          );
-        } else {
-          Alert.alert("Registration Denied", response.message);
-        }
+        Alert.alert("Registration Failed", regResult.message || "Unable to register device.");
       }
     } catch (error) {
-      Alert.alert("Network Failure", "Unable to connect to the authentication servers.");
+      Alert.alert("Error", "Server error encountered during onboarding.");
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleRecoverDevice = async () => {
-    const activeStudentId = studentId.trim();
-
-    if (!activeStudentId || !recoveryPin) {
-      Alert.alert("Missing Parameters", "Please enter your Student ID and 4-digit Security PIN.");
-      return;
-    }
-
-    if (recoveryPin.length !== 4 || isNaN(Number(recoveryPin))) {
-      Alert.alert("Invalid PIN", "Security PIN must be exactly 4 digits.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const recoveryResponse = await AttendanceApiClient.recoverDevice(activeStudentId, recoveryPin);
-
-      if (!recoveryResponse.success) {
-        Alert.alert("Recovery Failed", recoveryResponse.message);
-        setIsSubmitting(false);
-        return;
-      }
-
-      const statusRes: any = await AttendanceApiClient.checkDeviceRevoked(activeStudentId);
-      const fetchedFirstName = statusRes?.firstName || statusRes?.first_name;
-      const fetchedLastName = statusRes?.lastName || statusRes?.last_name;
-
-      if (fetchedFirstName) {
-        setFirstName(fetchedFirstName);
-        setLastName(fetchedLastName || "");
-      }
-
-      setIsNameLocked(true);
-      setIsRecoveryMode(false);
-      setRecoveryPin("");
-
-      Alert.alert(
-        "Old Device Revoked",
-        `Account verified for ${fetchedFirstName || "Student"}. Old device access revoked. Please enter a new 4-digit Security PIN to register this phone.`
-      );
-    } catch (error) {
-      Alert.alert("Network Failure", "Unable to complete recovery request.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleClearLockedAccount = () => {
-    setIsNameLocked(false);
-    setStudentId("");
-    setFirstName("");
-    setLastName("");
-    setRecoveryPin("");
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.scrollContainer}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.brandHero}>
         <Text style={styles.heroTitle}>Student</Text>
         <Text style={styles.heroSubTitle}>Lab Attendance System</Text>
         <View style={styles.accentBar} />
         <Text style={styles.tagline}>
-          {isRecoveryMode
-            ? "Revoke old device access using your 4-digit Security PIN."
-            : isNameLocked
-              ? "Account verified. Set a new Security PIN for this device."
-              : "One-time setup for secure verification tracking."}
+          {isOnboardingStep
+            ? "Complete one-time student profile onboarding."
+            : "Sign in with your institutional Google account."}
         </Text>
       </View>
 
       <View style={styles.formContainer}>
-        <Text style={styles.sectionHeading}>
-          {isRecoveryMode ? "Device Recovery" : "Register Device"}
-        </Text>
-
-        {isNameLocked && !isRecoveryMode && (
-          <View style={{ backgroundColor: "#EFF6FF", borderColor: "#BFDBFE", borderWidth: 1, padding: 12, borderRadius: 10, marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#1E40AF" }}>
-              Account Found: {firstName} {lastName}
+        {!isOnboardingStep ? (
+          <>
+            <Text style={styles.sectionHeading}>Institutional Login</Text>
+            <Text style={styles.sectionSubHeading}>
+              Please authenticate using your official @ua.edu.ph institutional email.
             </Text>
-          </View>
-        )}
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Student ID</Text>
-          <TextInput
-            style={[styles.input, isNameLocked && !isRecoveryMode && { backgroundColor: "#F1F5F9", color: "#64748B" }]}
-            placeholder="e.g. 2024-1234"
-            placeholderTextColor="#94A3B8"
-            value={studentId}
-            onChangeText={setStudentId}
-            onBlur={handleIdCheck}
-            editable={!isNameLocked || isRecoveryMode}
-            autoCapitalize="characters"
-          />
-        </View>
+            <TouchableOpacity
+              style={[
+                styles.googleButton,
+                (!request || isSubmitting) && styles.googleButtonDisabled,
+              ]}
+              disabled={!request || isSubmitting}
+              onPress={handleGoogleSignIn}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.googleButtonText}>Sign In with Google SSO</Text>
+              )}
+            </TouchableOpacity>
 
-        {!isRecoveryMode && (
-          <View style={styles.inputRow}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>First Name</Text>
-              <TextInput
-                style={[styles.input, isNameLocked && { backgroundColor: "#F1F5F9", color: "#334155", fontWeight: "700" }]}
-                placeholder="Jane"
-                placeholderTextColor="#94A3B8"
-                value={firstName}
-                onChangeText={setFirstName}
-                editable={!isNameLocked}
-              />
+            <View style={styles.domainNotice}>
+              <Text style={styles.domainNoticeText}>
+                Access is strictly restricted to valid @ua.edu.ph accounts.
+              </Text>
             </View>
-            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-              <Text style={styles.label}>Last Name</Text>
-              <TextInput
-                style={[styles.input, isNameLocked && { backgroundColor: "#F1F5F9", color: "#334155", fontWeight: "700" }]}
-                placeholder="Doe"
-                placeholderTextColor="#94A3B8"
-                value={lastName}
-                onChangeText={setLastName}
-                editable={!isNameLocked}
-              />
-            </View>
-          </View>
-        )}
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>
-            {isRecoveryMode ? "Current Security PIN" : isNameLocked ? "New Security PIN" : "Security PIN"}
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder={isRecoveryMode ? "Enter 4-Digit PIN" : "Create 4-Digit PIN"}
-            placeholderTextColor="#94A3B8"
-            maxLength={4}
-            secureTextEntry
-            keyboardType="number-pad"
-            value={recoveryPin}
-            onChangeText={setRecoveryPin}
-          />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-          onPress={isRecoveryMode ? handleRecoverDevice : handleRegister}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>
-              {isRecoveryMode ? "REVOKE OLD DEVICE" : "REGISTER DEVICE"}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {isNameLocked && !isRecoveryMode ? (
-          <TouchableOpacity
-            style={{ alignSelf: "center", marginTop: 20, marginBottom: 24 }}
-            onPress={handleClearLockedAccount}
-          >
-            <Text style={{ color: "#64748B", fontWeight: "600", fontSize: 13 }}>
-              Not your account? Clear and try again
-            </Text>
-          </TouchableOpacity>
+          </>
         ) : (
-          <TouchableOpacity
-            style={{ alignSelf: "center", marginTop: 20, marginBottom: 24 }}
-            onPress={() => {
-              setIsRecoveryMode(!isRecoveryMode);
-              setRecoveryPin("");
-            }}
-          >
-            <Text style={{ color: "#011B51", fontWeight: "600", fontSize: 13 }}>
-              {isRecoveryMode
-                ? "← Return to New Device Registration"
-                : "Already registered on another device? Recover Account"}
+          <>
+            <Text style={styles.sectionHeading}>One-Time Profile Setup</Text>
+            <Text style={styles.sectionSubHeading}>
+              Bind your Student ID and hardware key to complete onboarding.
             </Text>
-          </TouchableOpacity>
+
+            <View style={styles.profileBadge}>
+              <Text style={styles.profileBadgeTitle}>Authenticated Email</Text>
+              <Text style={styles.profileBadgeText}>{googleEmail}</Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Student ID</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 2023001839"
+                placeholderTextColor="#94A3B8"
+                value={studentId}
+                onChangeText={setStudentId}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <Text style={styles.label}>First Name</Text>
+                <TextInput
+                  style={[styles.input, styles.inputDisabled]}
+                  value={firstName}
+                  editable={false}
+                />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                <Text style={styles.label}>Last Name</Text>
+                <TextInput
+                  style={[styles.input, styles.inputDisabled]}
+                  value={lastName}
+                  editable={false}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Recovery PIN (6 Digits)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Create 6-Digit PIN"
+                placeholderTextColor="#94A3B8"
+                maxLength={6}
+                secureTextEntry
+                keyboardType="number-pad"
+                value={recoveryPin}
+                onChangeText={setRecoveryPin}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                isSubmitting && styles.submitButtonDisabled,
+              ]}
+              onPress={handleCompleteOnboarding}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>COMPLETE SETUP & REGISTER</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => setIsOnboardingStep(false)}
+            >
+              <Text style={styles.secondaryButtonText}>
+                ← Cancel and Switch Account
+              </Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
     </ScrollView>
