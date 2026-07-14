@@ -63,19 +63,32 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isRefreshingHistory, setIsRefreshingHistory] = useState(false);
 
+  // Core Synchronization Routine: Evaluates Device Bindings & Token Integrity Loops
   const loadLabRoomsAndCheckStatus = useCallback(async () => {
     try {
       setIsLoadingRooms(true);
 
+      // Fetch the cryptographic keys and session parameters from hardware encrypted sandbox storage
       const localPublicKey = await SecureStore.getItemAsync("student_public_key");
-      const statusRes: any = await AttendanceApiClient.checkDeviceRevoked(studentId);
+      const localSessionToken = await SecureStore.getItemAsync("session_token");
+
+      // Pass the extra parameters up to your network controller to validate active session state
+      const statusRes: any = await AttendanceApiClient.checkDeviceRevoked(
+        studentId, 
+        localSessionToken || "", 
+        localPublicKey || ""
+      );
+
+      // Evaluate revocation state using backward-compatible properties or explicit flags
+      const isTokenRevoked = statusRes?.revoked || statusRes?.isRevoked;
 
       const isKeyMismatched =
         statusRes?.currentPublicKey &&
         localPublicKey &&
         statusRes.currentPublicKey !== localPublicKey;
 
-      if (statusRes?.isRevoked || isKeyMismatched) {
+      // Bidirectional Eviction Trigger: Mismatch logs the device out immediately
+      if (isTokenRevoked || isKeyMismatched) {
         Alert.alert(
           "Session Expired",
           "This device has been deauthorized or your account was authorized on another device. Please register or recover your account again.",
@@ -123,6 +136,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     }
   }, [activeTab, fetchHistory]);
 
+  // Periodic Polling execution interval set to evaluate bindings every 5000ms
   useEffect(() => {
     const interval = setInterval(() => {
       loadLabRoomsAndCheckStatus();
@@ -131,6 +145,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     return () => clearInterval(interval);
   }, [loadLabRoomsAndCheckStatus]);
 
+  // AppState change listener solves background process throttling instantly upon wake
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {

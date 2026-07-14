@@ -1,33 +1,14 @@
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+import { Platform } from "react-native";
 
-export interface GoogleAuthResponse {
-  success: boolean;
-  message?: string;
-  isRegistered?: boolean;
-  sessionToken?: string;
-  student?: {
-    id: number;
-    studentId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    publicKey: string;
-  };
-  googleProfile?: {
-    email: string;
-    firstName: string;
-    lastName: string;
-  };
-}
+// Resolve local emulator loopback boundaries cleanly
+const getBackendUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  return Platform.OS === "android" ? "http://10.0.2.2:3000" : "http://localhost:3000";
+};
 
-export interface RegisterPayload {
-  idToken: string;
-  studentId: string;
-  firstName: string;
-  lastName: string;
-  publicKey: string;
-  recoveryPin: string;
-}
+const BASE_URL = getBackendUrl();
 
 export interface AttendancePayload {
   studentId: string;
@@ -37,114 +18,215 @@ export interface AttendancePayload {
   roomPin: string;
 }
 
-export interface ApiResponse {
-  success: boolean;
-  message: string;
-  isRevoked?: boolean;
-  data?: any;
-  sessionToken?: string;
-  student?: any;
+export interface RegisterStudentPayload {
+  idToken: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  publicKey: string;
+  recoveryPin: string;
 }
 
+export interface RecoverStudentPayload {
+  studentId: string;
+  recoveryPin: string;
+  newPin?: string;
+  publicKey: string;
+}
+
+// Global exported namespace matching your exact mobile screen consumption patterns
 export const AttendanceApiClient = {
-  /* Authenticate Google ID token with Next.js backend */
-  async googleAuthStudent(idToken: string): Promise<GoogleAuthResponse> {
+  /**
+   * Evaluates active device session token validity against database states.
+   */
+  checkDeviceRevoked: async (studentId: string, sessionToken: string, publicKey: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/student/auth/google`, {
+      const queryParams = new URLSearchParams({
+        studentId,
+        sessionToken,
+        publicKey,
+      });
+
+      const targetUrl = `${BASE_URL}/api/student/check-status?${queryParams.toString()}`;
+      console.log(`[API] Checking device revocation status: ${targetUrl}`);
+
+      const response = await fetch(targetUrl, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "x-student-id": studentId,
+          "x-session-token": sessionToken,
+        },
+      });
+
+      if (response.status === 401) {
+        console.warn("[API] Session shifted or revoked on backend. Triggering eviction.");
+        return { revoked: true, isRevoked: true };
+      }
+
+      if (!response.ok) {
+        return { success: false, revoked: false, error: `HTTP ${response.status}` };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("[API] Failed to contact check-status route:", error);
+      return { revoked: false, isRevoked: false, error: "Offline or network context error handles" };
+    }
+  },
+
+  /**
+   * Dispatches a native Google identity token to the backend for verification.
+   */
+  googleAuthStudent: async (idToken: string) => {
+    try {
+      const endpoint = `${BASE_URL}/api/student/auth/google`;
+      console.log(`[API] Dispatching Google ID Token to backend: ${endpoint}`);
+
+      const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ idToken }),
       });
-      return await response.json();
-    } catch (error) {
+
+      const data = await response.json();
       return {
-        success: false,
-        message: "Network request failed during Google authentication.",
+        success: response.ok,
+        ...data,
       };
+    } catch (error) {
+      console.error("[API] Error verifying Google Auth Token:", error);
+      return { success: false, message: "Failed to connect to authentication server." };
     }
   },
 
-  /* Register first-time student profile and bind ECDSA key pair */
-  async registerStudent(payload: RegisterPayload): Promise<ApiResponse> {
+  /**
+   * Registers a student profile and registers their cryptographic public key bindings.
+   */
+  registerStudent: async (payload: RegisterStudentPayload) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/student/register`, {
+      const endpoint = `${BASE_URL}/api/student/register`;
+      console.log(`[API] Submitting onboarding profile configuration: ${endpoint}`);
+
+      const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
-      return await response.json();
-    } catch (error) {
+
+      const data = await response.json();
       return {
-        success: false,
-        message: "Network request failed while registering device.",
+        success: response.ok,
+        ...data,
       };
+    } catch (error) {
+      console.error("[API] Error during student registration onboarding:", error);
+      return { success: false, message: "Failed to connect to profile registration server." };
     }
   },
 
-  async submitAttendance(payload: AttendancePayload): Promise<ApiResponse> {
+  /**
+   * FIX: Added dedicated recovery endpoint connector to support direct mobile key recovery requests.
+   */
+  recoverStudent: async (payload: RecoverStudentPayload) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/student/attendance`, {
+      const endpoint = `${BASE_URL}/api/student/recover`;
+      console.log(`[API] Submitting device hardware recovery handshake: ${endpoint}`);
+
+      const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
-      return await response.json();
-    } catch (error) {
+
+      const data = await response.json();
       return {
-        success: false,
-        message: "Network request failed while submitting attendance.",
+        success: response.ok,
+        ...data,
       };
+    } catch (error) {
+      console.error("[API] Error during student profile device recovery:", error);
+      return { success: false, message: "Failed to connect to account recovery server." };
     }
   },
 
-  async fetchLabRooms(): Promise<ApiResponse> {
+  /**
+   * Fetches active laboratory facilities from Next.js server.
+   */
+  fetchLabRooms: async () => {
     try {
       const response = await fetch(`${BASE_URL}/api/student/rooms`, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
       });
-      return await response.json();
+
+      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+      const data = await response.json();
+      
+      // Safe fallback formatting prevents application data alert crashes if the tables are unseeded
+      return { success: true, data: data.rooms || (Array.isArray(data) ? data : []) };
     } catch (error) {
-      return {
-        success: false,
-        message: "Network request failed while fetching laboratory facilities.",
-      };
+      console.error("[API] Error fetching lab rooms:", error);
+      return { success: false, data: [] };
     }
   },
 
-  async fetchStudentHistory(studentId: string): Promise<ApiResponse> {
+  /**
+   * Fetches historical check-in records for pagination mapping.
+   */
+  fetchStudentHistory: async (studentId: string) => {
     try {
       const response = await fetch(
         `${BASE_URL}/api/student/history?studentId=${encodeURIComponent(studentId)}`,
         {
           method: "GET",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
         }
       );
+
+      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
       return await response.json();
     } catch (error) {
-      return {
-        success: false,
-        message: "Network request failed while fetching attendance history.",
-      };
+      console.error("[API] Error loading history logs:", error);
+      return { success: false, data: [] };
     }
   },
 
-  async checkDeviceRevoked(studentId: string): Promise<ApiResponse> {
+  /**
+   * Submits geofenced cryptographically signed attendance payloads to backend.
+   */
+  submitAttendance: async (payload: AttendancePayload) => {
     try {
-      const response = await fetch(
-        `${BASE_URL}/api/student/check-status?studentId=${encodeURIComponent(studentId)}`,
-        {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-      return await response.json();
+      const response = await fetch(`${BASE_URL}/api/student/attendance`, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      return { success: response.ok, message: data.message || data.error };
     } catch (error) {
-      return {
-        success: false,
-        message: "Network request failed while checking device status.",
-      };
+      console.error("[API] Error submitting attendance signature:", error);
+      return { success: false, message: "Server connection lost during validation." };
     }
   },
 };
