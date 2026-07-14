@@ -26,7 +26,6 @@ export function useReadinessGuard(): ReadinessState {
       const perm = await Location.getForegroundPermissionsAsync();
       setHasLocationPermission(perm.granted);
 
-      // Verify server reachability using an abortable GET ping to the rooms endpoint
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);

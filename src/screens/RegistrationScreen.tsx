@@ -67,6 +67,14 @@ export default function RegistrationScreen({
       }
 
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+      /* Clears cached Google session state to force account picker prompt */
+      try {
+        await GoogleSignin.signOut();
+      } catch (signOutError) {
+        /* Safe to ignore if no previous session exists */
+      }
+
       const response = await GoogleSignin.signIn();
 
       const idToken = response.data?.idToken;
