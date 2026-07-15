@@ -25,6 +25,7 @@ export interface RegisterStudentPayload {
   lastName: string;
   publicKey: string;
   recoveryPin: string;
+  email: string;
 }
 
 export interface RecoverStudentPayload {

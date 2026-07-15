@@ -187,6 +187,7 @@ export default function RegistrationScreen({
         lastName,
         publicKey: keyPair.publicKeyBase64,
         recoveryPin: activePin,
+        email: googleEmail,
       });
 
       if (regResult.success && regResult.sessionToken) {
@@ -319,7 +320,7 @@ export default function RegistrationScreen({
       >
         <View style={styles.heroOverlay}>
           <Image
-            source={require("../../assets/ua-logo.png")} 
+            source={require("../../assets/ua-logo.png")}
             style={styles.heroLogo}
           />
           <Text style={styles.heroTitle}>Student</Text>
