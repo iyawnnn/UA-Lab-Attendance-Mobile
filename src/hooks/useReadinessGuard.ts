@@ -7,8 +7,30 @@ export interface ReadinessState {
   isGpsEnabled: boolean;
   hasLocationPermission: boolean;
   isChecking: boolean;
+  isInCampus: boolean;
   requestLocationPermission: () => Promise<boolean>;
   checkReadiness: () => Promise<void>;
+}
+
+const CAMPUS_LAT = parseFloat(process.env.EXPO_PUBLIC_CAMPUS_LAT || "15.036950");
+const CAMPUS_LNG = parseFloat(process.env.EXPO_PUBLIC_CAMPUS_LNG || "120.697467");
+const GEOFENCE_RADIUS = parseFloat(process.env.EXPO_PUBLIC_GEOFENCE_RADIUS_METERS || "65");
+
+function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // Earth's radius in meters
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) *
+      Math.sin(deltaLambda / 2) *
+      Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
 }
 
 export function useReadinessGuard(): ReadinessState {
@@ -16,6 +38,7 @@ export function useReadinessGuard(): ReadinessState {
   const [isGpsEnabled, setIsGpsEnabled] = useState<boolean>(true);
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean>(true);
   const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [isInCampus, setIsInCampus] = useState<boolean>(false);
 
   const checkReadiness = useCallback(async () => {
     setIsChecking(true);
@@ -41,8 +64,32 @@ export function useReadinessGuard(): ReadinessState {
       } catch (networkError) {
         setIsOnline(false);
       }
+
+      if (servicesEnabled && perm.granted) {
+        // High accuracy forces the emulator to look for raw GPS mock parameters
+        const activeLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        if (activeLocation?.coords) {
+          const { latitude, longitude } = activeLocation.coords;
+          const distance = getDistanceInMeters(latitude, longitude, CAMPUS_LAT, CAMPUS_LNG);
+          
+          // Debug logs to see exactly what coordinates are being evaluated on each interval
+          console.log(
+            `[GPS DEBUG] Coords: (${latitude.toFixed(6)}, ${longitude.toFixed(6)}) | ` +
+            `Distance: ${distance.toFixed(1)}m | ` +
+            `Target Radius: ${GEOFENCE_RADIUS}m | ` +
+            `Status: ${distance <= GEOFENCE_RADIUS ? "IN CAMPUS" : "OUTSIDE CAMPUS"}`
+          );
+
+          setIsInCampus(distance <= GEOFENCE_RADIUS);
+        }
+      } else {
+        setIsInCampus(false);
+      }
     } catch (err) {
-      console.warn("Readiness check error:", err);
+      console.warn("Readiness check error during location poll:", err);
     } finally {
       setIsChecking(false);
     }
@@ -53,6 +100,9 @@ export function useReadinessGuard(): ReadinessState {
       const { status } = await Location.requestForegroundPermissionsAsync();
       const granted = status === "granted";
       setHasLocationPermission(granted);
+      if (granted) {
+        await checkReadiness();
+      }
       return granted;
     } catch (error) {
       console.warn("Location permission request error:", error);
@@ -81,6 +131,7 @@ export function useReadinessGuard(): ReadinessState {
     isGpsEnabled,
     hasLocationPermission,
     isChecking,
+    isInCampus,
     requestLocationPermission,
     checkReadiness,
   };
