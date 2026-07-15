@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, Dimensions } from "react-native";
 
 export const styles = StyleSheet.create({
   scrollContainer: {
@@ -6,22 +6,26 @@ export const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   statusHero: {
-    backgroundColor: "#011B51",
-    paddingTop: 64,
-    paddingBottom: 28,
+    width: "100%",
+    height: Dimensions.get("window").height * 0.35,
+    justifyContent: "center",
+  },
+  heroOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(1, 27, 81, 0.65)",
+    justifyContent: "center",
     paddingHorizontal: 24,
-    borderBottomWidth: 4,
-    borderBottomColor: "#FED702",
+    paddingTop: 40,
   },
   studentBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
-    marginBottom: 16,
+    borderColor: "rgba(255, 255, 255, 0.25)",
+    marginBottom: 12,
   },
   studentBadgeText: {
     color: "#FED702",
@@ -34,6 +38,7 @@ export const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#FFFFFF",
     textTransform: "uppercase",
+    letterSpacing: -0.5,
   },
   accentBar: {
     width: 48,
@@ -47,6 +52,7 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: "#E2E8F0",
     fontWeight: "500",
+    lineHeight: 18,
   },
   tabSegmentContainer: {
     flexDirection: "row",
@@ -55,7 +61,7 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 4,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.15)",
   },
   tabSegmentButton: {
     flex: 1,
@@ -66,6 +72,11 @@ export const styles = StyleSheet.create({
   },
   tabSegmentActive: {
     backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   tabSegmentText: {
     fontSize: 11,
@@ -80,6 +91,7 @@ export const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 24,
     paddingTop: 28,
+    paddingBottom: 40,
   },
   sectionHeading: {
     fontSize: 22,
@@ -99,7 +111,7 @@ export const styles = StyleSheet.create({
     marginBottom: 16,
   },
   timeDetails: {
-    marginLeft: 12,
+    marginLeft: 4,
   },
   timeLabel: {
     fontSize: 10,
@@ -117,7 +129,7 @@ export const styles = StyleSheet.create({
   readinessContainer: {
     flexDirection: "row",
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   statusPill: {
     flex: 1,
@@ -148,7 +160,7 @@ export const styles = StyleSheet.create({
     marginRight: 8,
   },
   pillText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.5,
     textTransform: "uppercase",
@@ -166,23 +178,25 @@ export const styles = StyleSheet.create({
     color: "#1E40AF",
     fontWeight: "600",
     textAlign: "center",
+    lineHeight: 16,
   },
   inputGroup: {
     marginBottom: 20,
   },
   label: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#011B51",
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#94A3B8",
     textTransform: "uppercase",
-    marginBottom: 8,
     letterSpacing: 0.5,
+    marginBottom: 6,
+    marginLeft: 2,
   },
   pickerContainer: {
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: "hidden",
   },
   picker: {
@@ -194,7 +208,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
     fontSize: 20,
@@ -204,14 +218,20 @@ export const styles = StyleSheet.create({
     letterSpacing: 8,
   },
   submitButton: {
+    width: "100%",
+    height: 48,
     backgroundColor: "#011B51",
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: "center",
+    borderRadius: 12,
     justifyContent: "center",
-    marginTop: 12,
-    borderBottomWidth: 4,
+    alignItems: "center",
+    borderBottomWidth: 3,
     borderBottomColor: "#A51A21",
+    marginTop: 12,
+    shadowColor: "#011B51",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   submitButtonDisabled: {
     opacity: 0.6,
@@ -219,28 +239,29 @@ export const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-    letterSpacing: 1,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   revokeButton: {
     alignSelf: "center",
     marginTop: 32,
-    marginBottom: 24,
+    paddingVertical: 4,
   },
   revokeButtonText: {
     color: "#94A3B8",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     textDecorationLine: "underline",
   },
   historyHeader: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "900",
     color: "#011B51",
     textTransform: "uppercase",
+    letterSpacing: -0.25,
     marginBottom: 16,
   },
   historyCard: {
@@ -250,6 +271,11 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
   historyRow: {
     flexDirection: "row",
@@ -261,9 +287,11 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#011B51",
+    flex: 1,
+    marginRight: 8,
   },
   badgeOnTime: {
-    backgroundColor: "#D1FAE5",
+    backgroundColor: "#E6FDF5",
     borderColor: "#A7F3D0",
     borderWidth: 1,
     paddingHorizontal: 8,
@@ -277,7 +305,7 @@ export const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   badgeLate: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: "#FFF9E6",
     borderColor: "#FDE68A",
     borderWidth: 1,
     paddingHorizontal: 8,
@@ -325,11 +353,13 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    borderStyle: "dashed",
   },
   emptyStateText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
-    color: "#64748B",
+    color: "#94A3B8",
     textAlign: "center",
+    lineHeight: 16,
   },
 });

@@ -7,6 +7,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
+  ImageBackground
 } from "react-native";
 import {
   GoogleSignin,
@@ -31,8 +33,6 @@ export default function RegistrationScreen({
   onRegistrationSuccess,
 }: RegistrationScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Multi-view tracker expanded to include the two separate recovery steps
   const [currentView, setCurrentView] = useState<"login" | "onboarding" | "recovery_verify" | "recovery_set_pin">("login");
 
   const [googleIdToken, setGoogleIdToken] = useState("");
@@ -41,14 +41,12 @@ export default function RegistrationScreen({
   const [lastName, setLastName] = useState("");
   const [studentId, setStudentId] = useState("");
   const [recoveryPin, setRecoveryPin] = useState("");
-  const [newRecoveryPin, setNewRecoveryPin] = useState(""); // Track replacement PIN selection
+  const [newRecoveryPin, setNewRecoveryPin] = useState("");
 
-  // Temporary local state cache to carry credentials between step 1 and step 2
   const [cachedSessionToken, setCachedSessionToken] = useState("");
   const [cachedPrivateKey, setCachedPrivateKey] = useState("");
   const [cachedPublicKey, setCachedPublicKey] = useState("");
 
-  /* Binds the web client ID to validate backend token audience */
   useEffect(() => {
     try {
       if (GoogleSignin && typeof GoogleSignin.configure === "function") {
@@ -79,7 +77,7 @@ export default function RegistrationScreen({
       try {
         await GoogleSignin.signOut();
       } catch (signOutError) {
-        /* Safe to ignore if no previous session exists */
+        /* Safe to ignore */
       }
 
       const response = await GoogleSignin.signIn();
@@ -93,10 +91,7 @@ export default function RegistrationScreen({
       }
     } catch (error: any) {
       setIsSubmitting(false);
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        return;
-      }
-      if (error.code === statusCodes.IN_PROGRESS) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED || error.code === statusCodes.IN_PROGRESS) {
         return;
       }
       if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
@@ -126,21 +121,15 @@ export default function RegistrationScreen({
         let currentPublicKey = await SecureStore.getItemAsync("student_public_key");
 
         const dbPublicKey = authResult.publicKey;
+        const isKeyMismatched = dbPublicKey && currentPublicKey && currentPublicKey !== dbPublicKey;
 
-        const isKeyMismatched = 
-          dbPublicKey && 
-          currentPublicKey && 
-          currentPublicKey !== dbPublicKey;
-
-        // Secure Transfer Routing: Pre-populates identification profiles without dropping context
         if (!currentPrivateKey || !currentPublicKey || isKeyMismatched) {
-          console.warn("[SECURITY] Hardware key mismatch or missing context. Routing to recovery view entry validation layout.");
           setGoogleEmail(authResult.email || "");
           setStudentId(authResult.studentId || "");
           setFirstName(authResult.firstName || "");
           setLastName(authResult.lastName || "");
           setCurrentView("recovery_verify");
-          
+
           Alert.alert(
             "Device Re-authorization Required",
             "This account is active on another device. Please provide your 6-digit Recovery PIN to bind this phone."
@@ -251,20 +240,19 @@ export default function RegistrationScreen({
       const data = await response.json();
 
       if (response.ok && data.success && data.sessionToken) {
-        // Cache hardware credentials locally to prepare for step 2 setup confirmation processing
         setCachedSessionToken(data.sessionToken);
         setCachedPrivateKey(keyPair.privateKeyBase64);
         setCachedPublicKey(keyPair.publicKeyBase64);
-        
+
         if (data.email) setGoogleEmail(data.email);
         if (data.firstName) setFirstName(data.firstName);
         if (data.lastName) setLastName(data.lastName);
 
         Alert.alert(
-          "Device Transferred", 
+          "Device Transferred",
           "Previous active terminal session successfully evicted! Let's update your Recovery PIN credentials next."
         );
-        setCurrentView("recovery_set_pin"); // Route smoothly to the read-only profile update form setup layout
+        setCurrentView("recovery_set_pin");
       } else {
         Alert.alert("Recovery Failed", data.message || "Incorrect Recovery PIN or Student ID.");
       }
@@ -275,7 +263,6 @@ export default function RegistrationScreen({
     }
   };
 
-  // 🔥 Multi-Step Recovery Phase 2: Commits the new or current PIN change configuration parameters
   const handleRecoveryStep2CommitPin = async () => {
     const activeStudentId = studentId.trim();
     const targetPin = newRecoveryPin.trim();
@@ -321,44 +308,54 @@ export default function RegistrationScreen({
 
   return (
     <ScrollView
-      contentContainerStyle={styles.scrollContainer}
+      style={styles.scrollContainer}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.brandHero}>
-        <Text style={styles.heroTitle}>Student</Text>
-        <Text style={styles.heroSubTitle}>Lab Attendance System</Text>
-        <View style={styles.accentBar} />
-        <Text style={styles.tagline}>
-          {currentView === "onboarding"
-            ? "Complete one-time student profile onboarding."
-            : currentView === "recovery_verify" || currentView === "recovery_set_pin"
-              ? "Re-authorize this hardware device terminal binding."
-              : "Sign in with your institutional Google account."}
-        </Text>
-      </View>
+      {/* High-Fidelity Background Image Hero Panel */}
+      <ImageBackground
+        source={require("../../assets/labs.jpg")}
+        style={styles.brandHero}
+        resizeMode="cover"
+      >
+        <View style={styles.heroOverlay}>
+          <Image
+            source={require("../../assets/ua-logo.png")} 
+            style={styles.heroLogo}
+          />
+          <Text style={styles.heroTitle}>Student</Text>
+          <Text style={styles.heroSubTitle}>Lab Attendance System</Text>
+        </View>
+      </ImageBackground>
 
       <View style={styles.formContainer}>
         {currentView === "login" && (
-          <>
+          <View style={styles.viewStack}>
             <Text style={styles.sectionHeading}>Institutional Login</Text>
+            <View style={styles.yellowBar} />
             <Text style={styles.sectionSubHeading}>
-              Please authenticate using your official @ua.edu.ph institutional email.
+              Sign in with your official institutional email.
             </Text>
 
-            <TouchableOpacity
-              style={[
-                styles.googleButton,
-                isSubmitting && styles.googleButtonDisabled,
-              ]}
-              disabled={isSubmitting}
-              onPress={handleGoogleSignIn}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.googleButtonText}>Sign In with Google SSO</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.googleButtonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.googleButton,
+                  isSubmitting && styles.googleButtonDisabled,
+                ]}
+                disabled={isSubmitting}
+                onPress={handleGoogleSignIn}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#011B51" />
+                ) : (
+                  <Text style={styles.googleButtonText}>Sign In with Google</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.domainNoticeText}>
+              Access parameter rules restrict identity checking exclusively to valid @ua.edu.ph accounts.
+            </Text>
 
             <TouchableOpacity
               style={styles.secondaryButton}
@@ -370,21 +367,32 @@ export default function RegistrationScreen({
               }}
             >
               <Text style={styles.secondaryButtonText}>
-                Recover / Transfer Device Account
+                Recover / Transfer Account to this Device
               </Text>
             </TouchableOpacity>
 
-            <View style={styles.domainNotice}>
-              <Text style={styles.domainNoticeText}>
-                Access is strictly restricted to valid @ua.edu.ph accounts.
-              </Text>
+            <View style={styles.guidelinesContainer}>
+              <Text style={styles.guidelinesTitle}>Portal Guidelines</Text>
+              <View style={styles.guidelineItem}>
+                <Text style={styles.guidelineNumber}>01.</Text>
+                <Text style={styles.guidelineText}>Authenticate utilizing your personal structural laboratory SSO account credentials.</Text>
+              </View>
+              <View style={styles.guidelineItem}>
+                <Text style={styles.guidelineNumber}>02.</Text>
+                <Text style={styles.guidelineText}>The identity ledger automatically configures secure terminal key pairs on initial match.</Text>
+              </View>
+              <View style={styles.guidelineItem}>
+                <Text style={styles.guidelineNumber}>03.</Text>
+                <Text style={styles.guidelineText}>Verify your proximity parameter maps to clear the physical geofence boundary gates.</Text>
+              </View>
             </View>
-          </>
+          </View>
         )}
 
         {currentView === "onboarding" && (
-          <>
+          <View style={styles.viewStack}>
             <Text style={styles.sectionHeading}>One-Time Profile Setup</Text>
+            <View style={styles.yellowBar} />
             <Text style={styles.sectionSubHeading}>
               Bind your Student ID and hardware key to complete onboarding.
             </Text>
@@ -462,13 +470,13 @@ export default function RegistrationScreen({
                 ← Cancel and Switch Account
               </Text>
             </TouchableOpacity>
-          </>
+          </View>
         )}
 
-        {/* Recovery Phase 1 view block: Requests credentials to verify identity and trigger active remote logout */}
         {currentView === "recovery_verify" && (
-          <>
+          <View style={styles.viewStack}>
             <Text style={styles.sectionHeading}>Device Authorization Transfer</Text>
+            <View style={styles.yellowBar} />
             <Text style={styles.sectionSubHeading}>
               Provide your credentials to authenticate and clear previous active sessions.
             </Text>
@@ -522,13 +530,13 @@ export default function RegistrationScreen({
                 ← Back to Institutional Login
               </Text>
             </TouchableOpacity>
-          </>
+          </View>
         )}
 
-        {/* 🔥 Recovery Phase 2 view block: Personal profile identities are strictly locked down / read-only. Only the PIN can be customized */}
         {currentView === "recovery_set_pin" && (
-          <>
+          <View style={styles.viewStack}>
             <Text style={styles.sectionHeading}>Profile Recovery PIN Configuration</Text>
+            <View style={styles.yellowBar} />
             <Text style={styles.sectionSubHeading}>
               Device session bound. Provide your final 6-digit Recovery PIN configuration parameters.
             </Text>
@@ -594,7 +602,7 @@ export default function RegistrationScreen({
                 <Text style={styles.buttonText}>CONFIRM PIN & COMPLETE SETUP</Text>
               )}
             </TouchableOpacity>
-          </>
+          </View>
         )}
       </View>
     </ScrollView>

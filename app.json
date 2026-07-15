@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ua-student-attendance",
+    "name": "UA Student Attendance",
     "slug": "ua-student-attendance",
     "owner": "iyawnnn",
     "scheme": "com.ua.studentattendance",
@@ -12,6 +12,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.ua.studentattendance",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,7 +21,6 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.ua.studentattendance",
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"

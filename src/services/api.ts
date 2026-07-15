@@ -175,9 +175,10 @@ export const AttendanceApiClient = {
 
       if (!response.ok) throw new Error(`HTTP error ${response.status}`);
       const data = await response.json();
-      
-      // Safe fallback formatting prevents application data alert crashes if the tables are unseeded
-      return { success: true, data: data.rooms || (Array.isArray(data) ? data : []) };
+
+      // Corrected: Extracts data.data first matching backend response structure
+      const roomsList = data.data || data.rooms || (Array.isArray(data) ? data : []);
+      return { success: true, data: roomsList };
     } catch (error) {
       console.error("[API] Error fetching lab rooms:", error);
       return { success: false, data: [] };
