@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "UA Student Attendance",
+    "name": "UA LabSign",
     "slug": "ua-student-attendance",
     "owner": "iyawnnn",
     "scheme": "com.ua.studentattendance",
@@ -33,7 +33,7 @@
       [
         "expo-location",
         {
-          "locationForegroundPermission": "Allow UA Student Attendance to access your location to verify lab proximity."
+          "locationForegroundPermission": "Allow UA LabSign to access your location to verify lab proximity."
         }
       ],
       "@react-native-google-signin/google-signin",

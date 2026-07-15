@@ -46,6 +46,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     isOnline,
     isGpsEnabled,
     hasLocationPermission,
+    isInCampus,
     requestLocationPermission,
   } = useReadinessGuard();
 
@@ -64,9 +65,11 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isRefreshingHistory, setIsRefreshingHistory] = useState(false);
 
-  const loadLabRoomsAndCheckStatus = useCallback(async () => {
+  const loadLabRoomsAndCheckStatus = useCallback(async (showLoader = false) => {
     try {
-      setIsLoadingRooms(true);
+      if (showLoader) {
+        setIsLoadingRooms(true);
+      }
 
       const localPublicKey = await SecureStore.getItemAsync("student_public_key");
       const localSessionToken = await SecureStore.getItemAsync("session_token");
@@ -122,7 +125,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   }, [studentId]);
 
   useEffect(() => {
-    loadLabRoomsAndCheckStatus();
+    loadLabRoomsAndCheckStatus(true);
   }, [loadLabRoomsAndCheckStatus]);
 
   useEffect(() => {
@@ -133,7 +136,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
 
   useEffect(() => {
     const interval = setInterval(() => {
-      loadLabRoomsAndCheckStatus();
+      loadLabRoomsAndCheckStatus(false);
     }, 5000);
 
     return () => clearInterval(interval);
@@ -142,7 +145,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
-        loadLabRoomsAndCheckStatus();
+        loadLabRoomsAndCheckStatus(false);
         if (activeTab === "history") {
           fetchHistory();
         }
@@ -190,6 +193,11 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
 
     if (!hasLocationPermission) {
       setShowLocationDisclosure(true);
+      return;
+    }
+
+    if (!isInCampus) {
+      Alert.alert("Proximity Verification Failed", "You must be within the designated campus geofence to log attendance.");
       return;
     }
 
@@ -269,13 +277,14 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
     );
   };
 
-  const isFormLock = !isOnline || !isGpsEnabled || !hasLocationPermission;
+  const isFormLock = !isOnline || !isGpsEnabled || !hasLocationPermission || !isInCampus;
 
   const getButtonLabel = () => {
     if (isSubmitting) return "";
     if (!isOnline) return "REQUIRES INTERNET CONNECTION";
     if (!isGpsEnabled) return "ENABLE LOCATION SERVICES";
     if (!hasLocationPermission) return "ALLOW LOCATION ACCESS";
+    if (!isInCampus) return "OUTSIDE CAMPUS GEOFENCE";
     return "SECURELY LOG ATTENDANCE";
   };
 
@@ -301,7 +310,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         onDecline={() => setShowLocationDisclosure(false)}
       />
 
-      {/* Upgraded High-Fidelity Background Image Identity Header */}
       <ImageBackground
         source={require("../../assets/labs.jpg")}
         style={styles.statusHero}
@@ -315,7 +323,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
           <View style={styles.accentBar} />
           <Text style={styles.tagline}>Secure cryptographic validation mapping tracker.</Text>
 
-          {/* Tab Segment Switcher */}
           <View style={styles.tabSegmentContainer}>
             <TouchableOpacity
               style={[
@@ -363,7 +370,6 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
             </View>
           </View>
 
-          {/* Readiness Status Indicators */}
           <View style={styles.readinessContainer}>
             <View style={[styles.statusPill, isOnline ? styles.pillSuccess : styles.pillError]}>
               <View style={[styles.statusDot, { backgroundColor: isOnline ? "#059669" : "#DC2626" }]} />
@@ -381,26 +387,50 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
               }}
               style={[
                 styles.statusPill,
-                isGpsEnabled && hasLocationPermission ? styles.pillSuccess : styles.pillWarning
+                !isGpsEnabled
+                  ? styles.pillError
+                  : !hasLocationPermission
+                    ? styles.pillWarning
+                    : isInCampus
+                      ? styles.pillSuccess
+                      : styles.pillError
               ]}
             >
               <View
                 style={[
                   styles.statusDot,
-                  { backgroundColor: isGpsEnabled && hasLocationPermission ? "#059669" : "#D97706" }
+                  {
+                    backgroundColor: !isGpsEnabled
+                      ? "#DC2626"
+                      : !hasLocationPermission
+                        ? "#D97706"
+                        : isInCampus
+                          ? "#059669"
+                          : "#DC2626"
+                  }
                 ]}
               />
               <Text
                 style={[
                   styles.pillText,
-                  { color: isGpsEnabled && hasLocationPermission ? "#065F46" : "#92400E" }
+                  {
+                    color: !isGpsEnabled
+                      ? "#991B1B"
+                      : !hasLocationPermission
+                        ? "#92400E"
+                        : isInCampus
+                          ? "#065F46"
+                          : "#991B1B"
+                  }
                 ]}
               >
                 {!isGpsEnabled
                   ? "GPS OFF"
                   : !hasLocationPermission
                     ? "REQ PERMISSION"
-                    : "GPS ACTIVE"}
+                    : isInCampus
+                      ? "IN CAMPUS"
+                      : "OUTSIDE CAMPUS"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -420,16 +450,17 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
                   ? "An active internet connection is required to submit attendance."
                   : !isGpsEnabled
                     ? "Location services (GPS) are turned off in system settings."
-                    : "Location permission is required for campus geofence validation. Tap to allow."}
+                    : !hasLocationPermission
+                      ? "Location permission is required for campus geofence validation. Tap to allow."
+                      : "You are outside the campus geofence. Please enter the campus to check in."}
               </Text>
             </TouchableOpacity>
           )}
 
           <View style={styles.inputGroup}>
-            {/* Replace <div> with <View> */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <Text style={styles.label}>Laboratory Facility Room</Text>
-              <TouchableOpacity onPress={loadLabRoomsAndCheckStatus} disabled={isLoadingRooms}>
+              <TouchableOpacity onPress={() => loadLabRoomsAndCheckStatus(true)} disabled={isLoadingRooms}>
                 <Text style={{ fontSize: 12, fontWeight: "700", color: "#011B51" }}>
                   {isLoadingRooms ? "Refreshing..." : "Refresh"}
                 </Text>
