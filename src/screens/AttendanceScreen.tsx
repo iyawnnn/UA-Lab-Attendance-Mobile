@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
-  RefreshControl
+  RefreshControl,
+  ImageBackground
 } from "react-native";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
@@ -68,14 +69,21 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       setIsLoadingRooms(true);
 
       const localPublicKey = await SecureStore.getItemAsync("student_public_key");
-      const statusRes: any = await AttendanceApiClient.checkDeviceRevoked(studentId);
+      const localSessionToken = await SecureStore.getItemAsync("session_token");
 
+      const statusRes: any = await AttendanceApiClient.checkDeviceRevoked(
+        studentId,
+        localSessionToken || "",
+        localPublicKey || ""
+      );
+
+      const isTokenRevoked = statusRes?.revoked || statusRes?.isRevoked;
       const isKeyMismatched =
         statusRes?.currentPublicKey &&
         localPublicKey &&
         statusRes.currentPublicKey !== localPublicKey;
 
-      if (statusRes?.isRevoked || isKeyMismatched) {
+      if (isTokenRevoked || isKeyMismatched) {
         Alert.alert(
           "Session Expired",
           "This device has been deauthorized or your account was authorized on another device. Please register or recover your account again.",
@@ -293,51 +301,58 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
         onDecline={() => setShowLocationDisclosure(false)}
       />
 
-      <View style={styles.statusHero}>
-        <View style={styles.studentBadge}>
-          <Text style={styles.studentBadgeText}>ID: {studentId}</Text>
-        </View>
-        <Text style={styles.heroTitle}>Student Portal</Text>
-        <View style={styles.accentBar} />
-        <Text style={styles.tagline}>Secure cryptographic validation mapping tracker.</Text>
+      {/* Upgraded High-Fidelity Background Image Identity Header */}
+      <ImageBackground
+        source={require("../../assets/labs.jpg")}
+        style={styles.statusHero}
+        resizeMode="cover"
+      >
+        <View style={styles.heroOverlay}>
+          <View style={styles.studentBadge}>
+            <Text style={styles.studentBadgeText}>ID: {studentId}</Text>
+          </View>
+          <Text style={styles.heroTitle}>Student Portal</Text>
+          <View style={styles.accentBar} />
+          <Text style={styles.tagline}>Secure cryptographic validation mapping tracker.</Text>
 
-        {/* Tab Segment Switcher */}
-        <View style={styles.tabSegmentContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabSegmentButton,
-              activeTab === "checkin" && styles.tabSegmentActive,
-            ]}
-            onPress={() => setActiveTab("checkin")}
-          >
-            <Text
+          {/* Tab Segment Switcher */}
+          <View style={styles.tabSegmentContainer}>
+            <TouchableOpacity
               style={[
-                styles.tabSegmentText,
-                activeTab === "checkin" && styles.tabSegmentTextActive,
+                styles.tabSegmentButton,
+                activeTab === "checkin" && styles.tabSegmentActive,
               ]}
+              onPress={() => setActiveTab("checkin")}
             >
-              LOG CHECK-IN
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.tabSegmentText,
+                  activeTab === "checkin" && styles.tabSegmentTextActive,
+                ]}
+              >
+                LOG CHECK-IN
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.tabSegmentButton,
-              activeTab === "history" && styles.tabSegmentActive,
-            ]}
-            onPress={() => setActiveTab("history")}
-          >
-            <Text
+            <TouchableOpacity
               style={[
-                styles.tabSegmentText,
-                activeTab === "history" && styles.tabSegmentTextActive,
+                styles.tabSegmentButton,
+                activeTab === "history" && styles.tabSegmentActive,
               ]}
+              onPress={() => setActiveTab("history")}
             >
-              ATTENDANCE HISTORY
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.tabSegmentText,
+                  activeTab === "history" && styles.tabSegmentTextActive,
+                ]}
+              >
+                ATTENDANCE HISTORY
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </ImageBackground>
 
       {activeTab === "checkin" ? (
         <View style={styles.contentContainer}>
@@ -353,7 +368,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
             <View style={[styles.statusPill, isOnline ? styles.pillSuccess : styles.pillError]}>
               <View style={[styles.statusDot, { backgroundColor: isOnline ? "#059669" : "#DC2626" }]} />
               <Text style={[styles.pillText, { color: isOnline ? "#065F46" : "#991B1B" }]}>
-                {isOnline ? "NETWORK CONNECTED" : "NETWORK DISCONNECTED"}
+                {isOnline ? "CONNECTED" : "DISCONNECTED"}
               </Text>
             </View>
 
@@ -382,10 +397,10 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
                 ]}
               >
                 {!isGpsEnabled
-                  ? "LOCATION DISABLED"
+                  ? "GPS OFF"
                   : !hasLocationPermission
-                    ? "PERMISSION REQUIRED"
-                    : "LOCATION ACTIVE"}
+                    ? "REQ PERMISSION"
+                    : "GPS ACTIVE"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -411,14 +426,16 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
           )}
 
           <View style={styles.inputGroup}>
+            {/* Replace <div> with <View> */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <Text style={styles.label}>Facility Selection</Text>
+              <Text style={styles.label}>Laboratory Facility Room</Text>
               <TouchableOpacity onPress={loadLabRoomsAndCheckStatus} disabled={isLoadingRooms}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#011B51" }}>
-                  {isLoadingRooms ? "Refreshing..." : "Refresh Rooms"}
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#011B51" }}>
+                  {isLoadingRooms ? "Refreshing..." : "Refresh"}
                 </Text>
               </TouchableOpacity>
             </View>
+
             <View style={styles.pickerContainer}>
               {isLoadingRooms ? (
                 <ActivityIndicator size="small" color="#011B51" style={{ padding: 14 }} />
@@ -428,7 +445,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
                   onValueChange={(itemValue) => setSelectedRoom(itemValue)}
                   style={styles.picker}
                 >
-                  <Picker.Item label="Select lab room..." value="" />
+                  <Picker.Item label="Select laboratory room..." value="" />
                   {labRooms.map((room, index) => (
                     <Picker.Item key={index} label={room} value={room} />
                   ))}
@@ -438,7 +455,7 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Room PIN</Text>
+            <Text style={styles.label}>Room Session PIN</Text>
             <TextInput
               style={styles.pinInput}
               placeholder="0000"

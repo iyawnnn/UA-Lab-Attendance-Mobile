@@ -1,7 +1,9 @@
 {
   "expo": {
-    "name": "ua-student-attendance",
+    "name": "UA Student Attendance",
     "slug": "ua-student-attendance",
+    "owner": "iyawnnn",
+    "scheme": "com.ua.studentattendance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,6 +12,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.ua.studentattendance",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -17,7 +21,6 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.ua.studentattendance",
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
@@ -27,13 +30,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
       [
         "expo-location",
         {
           "locationForegroundPermission": "Allow UA Student Attendance to access your location to verify lab proximity."
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

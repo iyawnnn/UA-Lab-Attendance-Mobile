@@ -5,7 +5,14 @@ import RegistrationScreen from "./src/screens/RegistrationScreen";
 import AttendanceScreen from "./src/screens/AttendanceScreen";
 
 export default function App() {
-  const { isLoading, isRegistered, studentId, privateKey, saveCredentials, clearCredentials } = useAuthStorage();
+  const {
+    isLoading,
+    isRegistered,
+    studentId,
+    privateKey,
+    saveCredentials,
+    clearCredentials,
+  } = useAuthStorage();
 
   if (isLoading) {
     return (
@@ -20,10 +27,10 @@ export default function App() {
     <View style={styles.rootContainer}>
       <StatusBar barStyle="light-content" backgroundColor="#011B51" />
       {isRegistered && studentId && privateKey ? (
-        <AttendanceScreen 
-          studentId={studentId} 
-          privateKey={privateKey} 
-          onRevoked={clearCredentials} 
+        <AttendanceScreen
+          studentId={studentId}
+          privateKey={privateKey}
+          onRevoked={clearCredentials}
         />
       ) : (
         <RegistrationScreen onRegistrationSuccess={saveCredentials} />
