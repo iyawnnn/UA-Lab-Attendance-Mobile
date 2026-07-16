@@ -2,7 +2,7 @@
   "expo": {
     "name": "UA LabSign",
     "slug": "ua-student-attendance",
-    "owner": "iyawnnn",
+    "owner": "ua-labsign",
     "scheme": "com.ua.studentattendance",
     "version": "1.0.0",
     "orientation": "portrait",

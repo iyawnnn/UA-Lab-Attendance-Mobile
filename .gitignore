@@ -35,3 +35,9 @@ yarn-error.*
 
 # Typescript
 *.tsbuildinfo
+
+# Sensitive Android Signing Files
+credentials/
+credentials.json
+*.jks
+*.keystore
