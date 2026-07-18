@@ -8,17 +8,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "package": "com.ua.studentattendance",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#011349",
+        "foregroundImage": "./assets/icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -34,6 +29,14 @@
         "expo-location",
         {
           "locationForegroundPermission": "Allow UA LabSign to access your location to verify lab proximity."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#011349",
+          "image": "./assets/icon.png",
+          "imageWidth": 200
         }
       ],
       "@react-native-google-signin/google-signin",

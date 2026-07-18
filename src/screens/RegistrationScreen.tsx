@@ -349,7 +349,13 @@ export default function RegistrationScreen({
                 {isSubmitting ? (
                   <ActivityIndicator color="#011B51" />
                 ) : (
-                  <Text style={styles.googleButtonText}>Sign In with Google</Text>
+                  <>
+                    <Image
+                      source={require("../../assets/google-icon.png")}
+                      style={styles.googleIcon}
+                    />
+                    <Text style={styles.googleButtonText}>Sign In with Google</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>

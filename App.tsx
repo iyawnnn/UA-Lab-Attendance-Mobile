@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { StyleSheet, View, ActivityIndicator, Text, StatusBar } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
 import { useAuthStorage } from "./src/hooks/useAuthStorage";
 import RegistrationScreen from "./src/screens/RegistrationScreen";
 import AttendanceScreen from "./src/screens/AttendanceScreen";
+
+// Prevent the native splash screen from hiding automatically while the app fetches storage keys.
+SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const {
@@ -13,6 +17,16 @@ export default function App() {
     saveCredentials,
     clearCredentials,
   } = useAuthStorage();
+
+  useEffect(() => {
+    async function handleSplashScreen() {
+      if (!isLoading) {
+        // Dismiss the native splash screen layout layer once authentication loading finishes.
+        await SplashScreen.hideAsync();
+      }
+    }
+    handleSplashScreen();
+  }, [isLoading]);
 
   if (isLoading) {
     return (

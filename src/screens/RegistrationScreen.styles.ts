@@ -86,6 +86,7 @@ export const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -93,6 +94,12 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 12, 
+    resizeMode: "contain",
   },
   googleButtonDisabled: {
     opacity: 0.6,
@@ -116,6 +123,7 @@ export const styles = StyleSheet.create({
   secondaryButton: {
     alignSelf: "center",
     paddingVertical: 8,
+    marginTop: 24,
     marginBottom: 36,
   },
   secondaryButtonText: {
