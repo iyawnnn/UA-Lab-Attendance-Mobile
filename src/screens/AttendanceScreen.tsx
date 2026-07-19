@@ -81,15 +81,18 @@ export default function AttendanceScreen({ studentId, privateKey, onRevoked }: A
       );
 
       const isTokenRevoked = statusRes?.revoked || statusRes?.isRevoked;
+      const isUnconfigured = statusRes?.status === "unconfigured" || statusRes?.needsPinConfig;
       const isKeyMismatched =
         statusRes?.currentPublicKey &&
         localPublicKey &&
         statusRes.currentPublicKey !== localPublicKey;
 
-      if (isTokenRevoked || isKeyMismatched) {
+      if (isTokenRevoked || isKeyMismatched || isUnconfigured) {
         Alert.alert(
           "Session Expired",
-          "This device has been deauthorized or your account was authorized on another device. Please register or recover your account again.",
+          isUnconfigured
+            ? "Your device access and recovery PIN have been cleared by an administrator. Please set up your profile again."
+            : "This device has been deauthorized or your account was authorized on another device. Please register or recover your account again.",
           [{ text: "OK", onPress: async () => await onRevoked() }]
         );
         return;

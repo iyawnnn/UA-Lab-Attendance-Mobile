@@ -116,6 +116,25 @@ export default function RegistrationScreen({
         return;
       }
 
+      // 🟢 FIXED: Checking authResult.publicKey === "" safely catches revoked records without requiring the missing PIN field
+      if (authResult.status === "unconfigured" || authResult.needsPinConfig || (authResult.isRegistered && authResult.publicKey === "")) {
+        const keyPair = generateDeviceKeyPair();
+
+        setStudentId(authResult.studentId || "");
+        setCachedSessionToken(authResult.sessionToken || "");
+        setCachedPrivateKey(keyPair.privateKeyBase64);
+        setCachedPublicKey(keyPair.publicKeyBase64);
+
+        setGoogleEmail(authResult.email || "");
+        setFirstName(authResult.firstName || "");
+        setLastName(authResult.lastName || "");
+
+        // Bypass authorization transfer prompt and send them directly to choose a new PIN[cite: 1]
+        setCurrentView("recovery_set_pin");
+        setIsSubmitting(false);
+        return;
+      }
+
       if (authResult.isRegistered && authResult.studentId && authResult.sessionToken) {
         let currentPrivateKey = await SecureStore.getItemAsync("student_private_key");
         let currentPublicKey = await SecureStore.getItemAsync("student_public_key");
@@ -283,6 +302,7 @@ export default function RegistrationScreen({
           studentId: activeStudentId,
           newPin: targetPin,
           sessionToken: cachedSessionToken,
+          publicKey: cachedPublicKey,
         }),
       });
 
@@ -474,7 +494,7 @@ export default function RegistrationScreen({
               onPress={() => setCurrentView("login")}
             >
               <Text style={styles.secondaryButtonText}>
-                ← Cancel and Switch Account
+                &larr; Cancel and Switch Account
               </Text>
             </TouchableOpacity>
           </View>
@@ -534,7 +554,7 @@ export default function RegistrationScreen({
               onPress={() => setCurrentView("login")}
             >
               <Text style={styles.secondaryButtonText}>
-                ← Back to Institutional Login
+                &larr; Back to Institutional Login
               </Text>
             </TouchableOpacity>
           </View>
